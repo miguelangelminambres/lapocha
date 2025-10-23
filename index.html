@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>La Pocha en Ronda</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gradient-to-br from-orange-50 to-amber-50">
+  <div id="app"></div>
+
+  <script>
+    // Configuración de Supabase
+    const SUPABASE_URL = 'https://ksianqsrvhkxlnaaacio.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzaWFucXNydmhreGxuYWFhY2lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyNDU1MjEsImV4cCI6MjA3NjgyMTUyMX0.hjBRGq6Y-vymFB6DtSTLiGvz5StLSZNM9GwRTnLM95Q';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Estado de la aplicación
+    let state = {
+      members: [],
+      places: [],
+      products: [],
+      payments: [],
+      usualGroup: [],
+      currentOrder: {},
+      currentUser: null,
+      showLogin: true,
+      activeTab: 'payments',
+      showAddMember: false,
+      showAddBar: false,
+      showAddProduct: false,
+      newMemberName: '',
+      newMemberAvatar: '👤',
+      newBarName: '',
+      newProductName: '',
+      paymentDate: new Date().toISOString().split('T')[0],
+      paymentPlace: '',
+      newPlace: '',
+      paymentPayers: [{ memberId: '', amount: '' }],
+      paymentAttendees: []
+    };
+
+    const avatarOptions = ['👤', '😊', '😎', '🤓', '🥳', '🤠', '👨', '👩', '🧔', '👱', '🙋', '💃', '🕺'];
+
+    // Funciones de base de datos
+    async function loadAllData() {
+      try {
+        const [membersRes, placesRes, productsRes, paymentsRes, usualGroupRes] = await Promise.all([
+          supabase.from('members').select('*'),
+          supabase.from('places').select('*'),
+          supabase.from('products').select('*'),
+          supabase.from('payments').select('*').order('date', { ascending: false }),
+          supabase.from('usual_group').select('*').limit(1)
+        ]);
+
+        if (membersRes.data) state.members = membersRes.data;
+        if (placesRes.data) state.places = placesRes.data.map(p => p.name);
+        if (productsRes.data) state.products = productsRes.data.map(p => p.name);
+        if (paymentsRes.data) {
+          state.payments = paymentsRes.data.map(p => ({
+            id: p.id,
+            date: p.date,
+            place: p.place,
+            payers: p.payers,
+            attendees: p.attendees,
+            totalAmount: parseFloat(p.total_amount),
+            registeredBy: p.registered_by,
+            registeredAt: p.registered_at
+          }));
+        }
+        if (usualGroupRes.data && usualGroupRes.data.length > 0) {
+          state.usualGroup = usualGroupRes.data[0].member_ids || [];
+          state.paymentAttendees = [...state.usualGroup];
+        }
+
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser && state.members.find(m => m.id === savedUser)) {
+          state.currentUser = savedUser;
+          state.showLogin = false;
+        }
+
+        render();
+      } catch (error) {
+        console.error('Error cargando datos:', error);
+        alert('Error al cargar los datos. Por favor, recarga la página.');
+      }
+    }
+
+    async function addMember() {
+      if (!state.newMemberName.trim()) return;
+      
+      const newMember = {
+        id: Date.now().toString(),
+        name: state.newMemberName.trim(),
+        avatar: state.newMemberAvatar
+      };
+
+      const { error } = await supabase.from('members').insert([newMember]);
+      if (error) {
+        console.error('Error:', error);
+        alert('Error al añadir miembro');
+        return;
+      }
+
+      state.members.push(newMember);
+      state.newMemberName = '';
+      state.newMemberAvatar = '👤';
+      state.showAddMember = false;
+      render();
+    }
+
+    async function deleteMember(id) {
+      if (!confirm('¿Seguro que quieres eliminar este miembro?')) return;
+      
+      const { error } = await supabase.from('members').delete().eq('id', id);
+      if (error) {
+        console.error('Error:', error);
+        return;
+      }
+
+      state.members = state.members.filter(m => m.id !== id);
+      render();
+    }
+
+    async function addBar() {
+      if (!state.newBarName.trim()) return;
+      if (state.places.includes(state.newBarName.trim())) {
+        alert('Este bar ya está en la lista');
+        return;
+      }
+
+      const { error } = await supabase.from('places').insert([{ name: state.newBarName.trim() }]);
+      if (error) {
+        console.error('Error:', error);
+        alert('Error al añadir bar');
+        return;
+      }
+
+      state.places.push(state.newBarName.trim());
+      state.newBarName = '';
+      state.showAddBar = false;
+      render();
+    }
+
+    async function deleteBar(barName) {
+      if (!confirm('¿Seguro que quieres eliminar este bar?')) return;
+      
+      const { error } = await supabase.from('places').delete().eq('name', barName);
+      if (error) {
+        console.error('Error:', error);
+        return;
+      }
+
+      state.places = state.places.filter(p => p !== barName);
+      render();
+    }
+
+    async function addProduct() {
+      if (!state.newProductName.trim()) return;
+      if (state.products.includes(state.newProductName.trim())) {
+        alert('Este producto ya está en la lista');
+        return;
+      }
+
+      const { error } = await supabase.from('products').insert([{ name: state.newProductName.trim() }]);
+      if (error) {
+        console.error('Error:', error);
+        alert('Error al añadir producto');
+        return;
+      }
+
+      state.products.push(state.newProductName.trim());
+      state.newProductName = '';
+      state.showAddProduct = false;
+      render();
+    }
+
+    async function deleteProduct(productName) {
+      if (!confirm('¿Seguro que quieres eliminar este producto?')) return;
+      
+      const { error } = await supabase.from('products').delete().eq('name', productName);
+      if (error) {
+        console.error('Error:', error);
+        return;
+      }
+
+      state.products = state.products.filter(p => p !== productName);
+      delete state.currentOrder[productName];
+      render();
+    }
+
+    async function addPayment() {
+      if (state.paymentAttendees.length === 0) {
+        alert('Selecciona al menos un asistente');
+        return;
+      }
+
+      const validPayers = state.paymentPayers.filter(p => p.memberId && p.amount && parseFloat(p.amount) > 0);
+      if (validPayers.length === 0) {
+        alert('Añade al menos una persona que pagó con un importe válido');
+        return;
+      }
+
+      const placeToUse = state.newPlace.trim() || state.paymentPlace;
+      if (!placeToUse) {
+        alert('Indica el lugar');
+        return;
+      }
+
+      const totalAmount = validPayers.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+      const newPayment = {
+        id: Date.now().toString(),
+        date: state.paymentDate,
+        place: placeToUse,
+        payers: validPayers.map(p => ({
+          memberId: p.memberId,
+          amount: parseFloat(p.amount)
+        })),
+        attendees: state.paymentAttendees,
+        total_amount: totalAmount,
+        registered_by: state.currentUser,
+        registered_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase.from('payments').insert([newPayment]);
+      if (error) {
+        console.error('Error:', error);
+        alert('Error al guardar el pago');
+        return;
+      }
+
+      if (state.newPlace.trim() && !state.places.includes(state.newPlace.trim())) {
+        await supabase.from('places').insert([{ name: state.newPlace.trim() }]);
+        state.places.push(state.newPlace.trim());
+      }
+
+      state.payments.unshift({
+        ...newPayment,
+        totalAmount: totalAmount
+      });
+
+      state.paymentDate = new Date().toISOString().split('T')[0];
+      state.paymentPlace = '';
+      state.newPlace = '';
+      state.paymentPayers = [{ memberId: '', amount: '' }];
+      state.paymentAttendees = [...state.usualGroup];
+      render();
+    }
+
+    async function deletePayment(id) {
+      if (!confirm('¿Seguro que quieres eliminar este pago?')) return;
+      
+      const { error } = await supabase.from('payments').delete().eq('id', id);
+      if (error) {
+        console.error('Error:', error);
+        return;
+      }
+
+      state.payments = state.payments.filter(p => p.id !== id);
+      render();
+    }
+
+    async function saveUsualGroup() {
+      if (state.paymentAttendees.length === 0) {
+        alert('Selecciona al menos una persona para el grupo habitual');
+        return;
+      }
+
+      const { data: existing } = await supabase.from('usual_group').select('*').limit(1);
+      
+      if (existing && existing.length > 0) {
+        await supabase.from('usual_group').update({ 
+          member_ids: state.paymentAttendees,
+          updated_at: new Date().toISOString()
+        }).eq('id', existing[0].id);
+      } else {
+        await supabase.from('usual_group').insert([{ member_ids: state.paymentAttendees }]);
+      }
+
+      state.usualGroup = [...state.paymentAttendees];
+      alert('✅ Grupo habitual guardado');
+      render();
+    }
+
+    async function clearUsualGroup() {
+      if (!confirm('¿Quieres borrar el grupo habitual guardado?')) return;
+      
+      await supabase.from('usual_group').delete().neq('id', 0);
+      state.usualGroup = [];
+      alert('Grupo habitual borrado');
+      render();
+    }
+
+    function login(memberId) {
+      localStorage.setItem('currentUser', memberId);
+      state.currentUser = memberId;
+      state.showLogin = false;
+      render();
+    }
+
+    function logout() {
+      if (!confirm('¿Cerrar sesión?')) return;
+      localStorage.removeItem('currentUser');
+      state.currentUser = null;
+      state.showLogin = true;
+      render();
+    }
+
+    function calculateStats() {
+      return state.members.map(member => {
+        const timesAttended = state.payments.filter(p => p.attendees.includes(member.id)).length;
+        const timesPaid = state.payments.filter(p => p.payers.some(payer => payer.memberId === member.id)).length;
+        const totalPaid = state.payments.reduce((sum, p) => {
+          const payer = p.payers.find(payer => payer.memberId === member.id);
+          return sum + (payer ? payer.amount : 0);
+        }, 0);
+
+        const totalShouldPay = state.payments.reduce((sum, p) => {
+          if (p.attendees.includes(member.id)) {
+            return sum + (p.totalAmount / p.attendees.length);
+          }
+          return sum;
+        }, 0);
+
+        return {
+          ...member,
+          timesAttended,
+          timesPaid,
+          timesNotPaid: timesAttended - timesPaid,
+          totalPaid,
+          totalShouldPay,
+          balance: totalPaid - totalShouldPay,
+          paymentRate: timesAttended > 0 ? (timesPaid / timesAttended * 100).toFixed(1) : 0
+        };
+      }).sort((a, b) => b.totalPaid - a.totalPaid);
+    }
+
+    // Función de renderizado
+    function render() {
+      const app = document.getElementById('app');
+      
+      if (state.showLogin || !state.currentUser) {
+        app.innerHTML = renderLogin();
+        return;
+      }
+
+      const currentUserData = state.members.find(m => m.id === state.currentUser);
+      
+      app.innerHTML = `
+        <div class="min-h-screen p-4">
+          <div class="max-w-6xl mx-auto">
+            <header class="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <div class="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h1 class="text-3xl font-bold text-orange-600">🍻 La Pocha en Ronda</h1>
+                  <p class="text-gray-600 mt-2">Gestiona los pagos de la pandilla</p>
+                </div>
+                <div class="flex items-center gap-4">
+                  <div class="text-right">
+                    <p class="text-sm text-gray-600">Conectado como:</p>
+                    <p class="font-bold text-lg flex items-center gap-2">
+                      <span class="text-3xl">${currentUserData?.avatar}</span>
+                      ${currentUserData?.name}
+                    </p>
+                  </div>
+                  <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+                    Salir
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div class="bg-white rounded-lg shadow-lg mb-6">
+              <div class="flex border-b overflow-x-auto">
+                ${renderTab('order', 'Pedido')}
+                ${renderTab('payments', 'Registrar Pago')}
+                ${renderTab('stats', 'Estadísticas')}
+                ${renderTab('history', 'Historial')}
+                ${renderTab('members', 'Miembros')}
+                ${renderTab('bars', 'Bares')}
+              </div>
+
+              <div class="p-6">
+                ${state.activeTab === 'order' ? renderOrder() : ''}
+                ${state.activeTab === 'payments' ? renderPayments() : ''}
+                ${state.activeTab === 'stats' ? renderStats() : ''}
+                ${state.activeTab === 'history' ? renderHistory() : ''}
+                ${state.activeTab === 'members' ? renderMembers() : ''}
+                ${state.activeTab === 'bars' ? renderBars() : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLogin() {
+      return `
+        <div class="min-h-screen p-4 flex items-center justify-center">
+          <div class="max-w-md w-full">
+            <div class="bg-white rounded-lg shadow-2xl p-8">
+              <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-orange-600 mb-2">🍻 La Pocha en Ronda</h1>
+                <p class="text-gray-600">Selecciona quién eres para continuar</p>
+              </div>
+
+              ${state.members.length === 0 ? `
+                <div class="text-center py-8">
+                  <p class="text-gray-600 mb-6">No hay miembros registrados todavía.</p>
+                  <p class="text-sm text-gray-500 mb-4">Para crear el primer usuario, necesitas acceso de administrador.</p>
+                  <button onclick="state.showLogin = false; state.activeTab = 'members'; render();" class="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 font-semibold">
+                    Configurar Miembros
+                  </button>
+                </div>
+              ` : `
+                <div class="space-y-3 max-h-96 overflow-y-auto">
+                  ${state.members.map(member => `
+                    <button onclick="login('${member.id}')" class="w-full bg-gradient-to-r from-orange-100 to-amber-100 hover:from-orange-200 hover:to-amber-200 p-4 rounded-lg flex items-center gap-4 transition-all border-2 border-transparent hover:border-orange-400">
+                      <div class="text-5xl">${member.avatar}</div>
+                      <div class="text-left">
+                        <div class="font-bold text-xl text-gray-800">${member.name}</div>
+                        <div class="text-sm text-gray-600">Toca para entrar</div>
+                      </div>
+                    </button>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTab(tab, label) {
+      const active = state.activeTab === tab;
+      return `
+        <button onclick="state.activeTab = '${tab}'; render();" 
+          class="flex-1 py-4 px-6 font-semibold whitespace-nowrap ${active ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-50'}">
+          ${label}
+        </button>
+      `;
+    }
+
+    function renderOrder() {
+      return `
+        <div>
+          <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+            <h2 class="text-2xl font-bold text-gray-800">Hacer Pedido en Barra</h2>
+            <div class="flex gap-2">
+              <button onclick="state.showAddProduct = true; render();" class="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600">
+                + Añadir Producto
+              </button>
+              ${Object.keys(state.currentOrder).length > 0 ? `
+                <button onclick="if(confirm('¿Borrar el pedido actual?')) { state.currentOrder = {}; render(); }" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+                  Limpiar Pedido
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          ${state.showAddProduct ? `
+            <div class="bg-orange-50 p-4 rounded-lg mb-6">
+              <h3 class="font-semibold mb-4">Nuevo Producto</h3>
+              <input type="text" id="newProductInput" placeholder="Nombre del producto" class="w-full px-4 py-2 border rounded-lg mb-4" value="${state.newProductName}">
+              <div class="flex gap-2">
+                <button onclick="state.newProductName = document.getElementById('newProductInput').value; addProduct();" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+                  Guardar
+                </button>
+                <button onclick="state.showAddProduct = false; state.newProductName = ''; render();" class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          ${state.products.length === 0 ? `
+            <p class="text-center text-gray-500 py-8">No hay productos todavía. ¡Añade el primero!</p>
+          ` : `
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              ${state.products.map(product => {
+                const quantity = state.currentOrder[product] || 0;
+                return `
+                  <div class="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                      <h3 class="font-semibold text-lg">${product}</h3>
+                      <button onclick="deleteProduct('${product}')" class="text-red-500 hover:text-red-700">
+                        🗑️
+                      </button>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <button onclick="state.currentOrder['${product}'] = Math.max(0, (state.currentOrder['${product}'] || 0) - 1); if(state.currentOrder['${product}'] === 0) delete state.currentOrder['${product}']; render();" 
+                        class="bg-red-500 text-white w-10 h-10 rounded-lg hover:bg-red-600 font-bold text-xl" ${quantity === 0 ? 'disabled' : ''}>
+                        -
+                      </button>
+                      <div class="text-3xl font-bold text-orange-600 min-w-[60px] text-center">
+                        ${quantity}
+                      </div>
+                      <button onclick="state.currentOrder['${product}'] = (state.currentOrder['${product}'] || 0) + 1; render();" 
+                        class="bg-green-500 text-white w-10 h-10 rounded-lg hover:bg-green-600 font-bold text-xl">
+                        +
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            ${Object.keys(state.currentOrder).length > 0 ? `
+              <div class="bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-300 rounded-lg p-6">
+                <h3 class="text-2xl font-bold text-green-800 mb-4">📋 Resumen del Pedido</h3>
+                <div class="space-y-2">
+                  ${Object.entries(state.currentOrder)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([product, quantity]) => `
+                      <div class="flex justify-between items-center text-lg bg-white rounded-lg px-4 py-2">
+                        <span class="font-semibold">${product}</span>
+                        <span class="text-green-700 font-bold">x ${quantity}</span>
+                      </div>
+                    `).join('')}
+                </div>
+                <div class="mt-4 pt-4 border-t-2 border-green-300">
+                  <div class="flex justify-between items-center text-xl font-bold">
+                    <span>Total artículos:</span>
+                    <span class="text-green-700">${Object.values(state.currentOrder).reduce((sum, q) => sum + q, 0)}</span>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+          `}
+        </div>
+      `;
+    }
+
+    function renderPayments() {
+      return `
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800 mb-6">Registrar Nuevo Pago</h2>
+          ${state.members.length === 0 ? `
+            <div class="text-center py-8">
+              <p class="text-gray-600 mb-4">Primero añade miembros al grupo</p>
+              <button onclick="state.activeTab = 'members'; render();" class="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600">
+                Ir a Miembros
+              </button>
+            </div>
+          ` : `
+            <div class="space-y-6">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">📅 Fecha</label>
+                <input type="date" id="paymentDate" value="${state.paymentDate}" 
+                  onchange="state.paymentDate = this.value; render();" 
+                  class="w-full px-4 py-2 border rounded-lg">
+              </div>
+
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">📍 Lugar</label>
+                ${state.places.length > 0 ? `
+                  <select id="paymentPlace" onchange="state.paymentPlace = this.value; render();" 
+                    class="w-full px-4 py-2 border rounded-lg mb-2">
+                    <option value="">Selecciona un lugar guardado...</option>
+                    ${state.places.map(place => `
+                      <option value="${place}" ${state.paymentPlace === place ? 'selected' : ''}>${place}</option>
+                    `).join('')}
+                  </select>
+                ` : ''}
+                <input type="text" id="newPlace" placeholder="O escribe un lugar nuevo" 
+                  value="${state.newPlace}" 
+                  oninput="state.newPlace = this.value;"
+                  class="w-full px-4 py-2 border rounded-lg">
+              </div>
+
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">💰 ¿Quién pagó?</label>
+                ${state.paymentPayers.map((payer, index) => `
+                  <div class="flex gap-2 mb-2">
+                    <select onchange="state.paymentPayers[${index}].memberId = this.value; render();" 
+                      class="flex-1 px-4 py-2 border rounded-lg">
+                      <option value="">Selecciona...</option>
+                      ${state.members.map(member => `
+                        <option value="${member.id}" ${payer.memberId === member.id ? 'selected' : ''}>
+                          ${member.avatar} ${member.name}
+                        </option>
+                      `).join('')}
+                    </select>
+                    <input type="number" step="0.01" placeholder="Importe €" 
+                      value="${payer.amount}" 
+                      oninput="state.paymentPayers[${index}].amount = this.value;"
+                      class="w-32 px-4 py-2 border rounded-lg">
+                    ${state.paymentPayers.length > 1 ? `
+                      <button onclick="state.paymentPayers.splice(${index}, 1); render();" 
+                        class="text-red-500 hover:text-red-700 px-2">
+                        ❌
+                      </button>
+                    ` : ''}
+                  </div>
+                `).join('')}
+                <button onclick="state.paymentPayers.push({ memberId: '', amount: '' }); render();" 
+                  class="text-orange-500 hover:text-orange-600 text-sm mt-2">
+                  + Añadir otra persona que pagó
+                </button>
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="block text-sm font-semibold text-gray-700">👥 ¿Quiénes estaban?</label>
+                  <div class="flex gap-2 flex-wrap">
+                    ${state.usualGroup.length > 0 ? `
+                      <button onclick="state.paymentAttendees = [...state.usualGroup]; render();" 
+                        class="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200">
+                        Restaurar grupo habitual
+                      </button>
+                      <button onclick="saveUsualGroup();" 
+                        class="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200">
+                        💾 Guardar como grupo habitual
+                      </button>
+                      <button onclick="clearUsualGroup();" 
+                        class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200">
+                        🗑️ Borrar grupo habitual
+                      </button>
+                    ` : `
+                      <button onclick="saveUsualGroup();" 
+                        class="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200">
+                        💾 Guardar como grupo habitual
+                      </button>
+                    `}
+                  </div>
+                </div>
+                ${state.usualGroup.length > 0 ? `
+                  <p class="text-xs text-gray-600 mb-3">
+                    ℹ️ Grupo habitual: ${state.usualGroup.map(id => state.members.find(m => m.id === id)?.name).filter(Boolean).join(', ')}
+                  </p>
+                ` : ''}
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  ${state.members.map(member => {
+                    const isSelected = state.paymentAttendees.includes(member.id);
+                    return `
+                      <button onclick="
+                        if (state.paymentAttendees.includes('${member.id}')) {
+                          state.paymentAttendees = state.paymentAttendees.filter(id => id !== '${member.id}');
+                        } else {
+                          state.paymentAttendees.push('${member.id}');
+                        }
+                        render();
+                      " class="p-3 rounded-lg border-2 flex items-center gap-2 transition-all ${isSelected ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300 hover:border-orange-300'}">
+                        <span class="text-2xl">${member.avatar}</span>
+                        <span class="font-medium">${member.name}</span>
+                        ${isSelected ? '<span class="ml-auto">✓</span>' : ''}
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+
+              <button onclick="addPayment();" class="w-full bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 font-semibold text-lg">
+                Guardar Pago
+              </button>
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    function renderStats() {
+      const stats = calculateStats();
+      
+      if (stats.length === 0) {
+        return '<p class="text-center text-gray-500 py-8">No hay datos todavía</p>';
+      }
+
+      const totalGastado = state.payments.reduce((sum, p) => sum + p.totalAmount, 0);
+      const promedioPorSalida = state.payments.length > 0 ? totalGastado / state.payments.length : 0;
+
+      return `
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800 mb-6">📊 Estadísticas del Grupo</h2>
+          
+          <div class="bg-gradient-to-r from-orange-100 to-amber-100 p-4 rounded-lg mb-6">
+            <h3 class="font-semibold text-lg mb-2">Resumen General</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p class="text-sm text-gray-600">Total Salidas</p>
+                <p class="text-2xl font-bold text-orange-600">${state.payments.length}</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-600">Total Gastado</p>
+                <p class="text-2xl font-bold text-orange-600">${totalGastado.toFixed(2)}€</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-600">Promedio por Salida</p>
+                <p class="text-2xl font-bold text-orange-600">${promedioPorSalida.toFixed(2)}€</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-600">Lugares Visitados</p>
+                <p class="text-2xl font-bold text-orange-600">${state.places.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <h3 class="font-semibold text-lg mb-4">Estadísticas por Persona</h3>
+          <div class="space-y-3">
+            ${stats.map(member => `
+              <div class="bg-white border-2 border-gray-200 rounded-lg p-4 hover:border-orange-300 transition-all">
+                <div class="flex items-start gap-4">
+                  <div class="text-4xl">${member.avatar}</div>
+                  <div class="flex-1">
+                    <h4 class="font-bold text-lg mb-2">${member.name}</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <p class="text-gray-600">Ha pagado</p>
+                        <p class="font-bold text-green-600">${member.totalPaid.toFixed(2)}€</p>
+                      </div>
+                      <div>
+                        <p class="text-gray-600">Debería pagar</p>
+                        <p class="font-bold text-blue-600">${member.totalShouldPay.toFixed(2)}€</p>
+                      </div>
+                      <div>
+                        <p class="text-gray-600">Balance</p>
+                        <p class="font-bold ${member.balance >= 0 ? 'text-green-600' : 'text-red-600'}">
+                          ${member.balance >= 0 ? '+' : ''}${member.balance.toFixed(2)}€
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-gray-600">Ratio de pago</p>
+                        <p class="font-bold text-purple-600">${member.paymentRate}%</p>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3 mt-3 text-sm">
+                      <div>
+                        <p class="text-gray-600">Veces asistido</p>
+                        <p class="font-bold">${member.timesAttended}</p>
+                      </div>
+                      <div>
+                        <p class="text-gray-600">Veces pagado</p>
+                        <p class="font-bold text-green-600">${member.timesPaid}</p>
+                      </div>
+                      <div>
+                        <p class="text-gray-600">Veces NO pagado</p>
+                        <p class="font-bold text-red-600">${member.timesNotPaid}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <h3 class="font-semibold text-lg mt-6 mb-4">Ranking de Pagos</h3>
+          <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-4">
+            ${stats.map((member, index) => `
+              <div class="flex items-center gap-3 py-2 border-b border-orange-200 last:border-0">
+                <div class="text-2xl font-bold text-orange-500 w-8">#${index + 1}</div>
+                <div class="text-2xl">${member.avatar}</div>
+                <div class="flex-1 font-semibold">${member.name}</div>
+                <div class="text-right">
+                  <p class="font-bold text-lg text-green-600">${member.totalPaid.toFixed(2)}€</p>
+                  <p class="text-xs text-gray-600">${member.timesPaid} pagos</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderHistory() {
+      if (state.payments.length === 0) {
+        return '<p class="text-center text-gray-500 py-8">No hay pagos registrados todavía</p>';
+      }
+
+      return `
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800 mb-6">Historial de Pagos</h2>
+          <div class="space-y-4">
+            ${state.payments.map(payment => {
+              const payerNames = payment.payers.map(p => {
+                const member = state.members.find(m => m.id === p.memberId);
+                return member ? `${member.avatar} ${member.name} (${p.amount.toFixed(2)}€)` : '';
+              }).join(', ');
+
+              const attendeesList = payment.attendees.map(id => {
+                const member = state.members.find(m => m.id === id);
+                return member ? `${member.avatar} ${member.name}` : '';
+              }).join(', ');
+
+              const registeredByMember = state.members.find(m => m.id === payment.registeredBy);
+              const registeredByText = registeredByMember 
+                ? `${registeredByMember.avatar} ${registeredByMember.name}`
+                : 'Desconocido';
+
+              return `
+                <div class="bg-white border-2 border-gray-200 rounded-lg p-4 hover:border-orange-300 transition-all">
+                  <div class="flex justify-between items-start mb-3">
+                    <div>
+                      <div class="flex items-center gap-2 mb-1">
+                        <span>📅</span>
+                        <span class="font-semibold">${new Date(payment.date).toLocaleDateString('es-ES')}</span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span>📍</span>
+                        <span class="text-gray-700">${payment.place}</span>
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <p class="text-2xl font-bold text-orange-600">${payment.totalAmount.toFixed(2)}€</p>
+                      <button onclick="deletePayment('${payment.id}')" class="text-red-500 hover:text-red-700 text-sm mt-1">
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                  <div class="space-y-2 text-sm">
+                    <div>
+                      <span class="font-semibold text-green-600">Pagó:</span> ${payerNames}
+                    </div>
+                    <div>
+                      <span class="font-semibold text-blue-600">Estaban:</span> ${attendeesList}
+                    </div>
+                    <div>
+                      <span class="font-semibold text-purple-600">Por persona:</span> ${(payment.totalAmount / payment.attendees.length).toFixed(2)}€
+                    </div>
+                    <div class="pt-2 border-t border-gray-200">
+                      <span class="font-semibold text-gray-600">Apuntado por:</span> ${registeredByText}
+                      ${payment.registeredAt ? `
+                        <span class="text-xs text-gray-500 ml-2">
+                          (${new Date(payment.registeredAt).toLocaleString('es-ES')})
+                        </span>
+                      ` : ''}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMembers() {
+      return `
+        <div>
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">Miembros del Grupo</h2>
+            <button onclick="state.showAddMember = true; render();" class="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600">
+              + Añadir Miembro
+            </button>
+          </div>
+
+          ${state.showAddMember ? `
+            <div class="bg-orange-50 p-4 rounded-lg mb-6">
+              <h3 class="font-semibold mb-4">Nuevo Miembro</h3>
+              <input type="text" id="newMemberName" placeholder="Nombre" value="${state.newMemberName}" class="w-full px-4 py-2 border rounded-lg mb-4">
+              <div>
+                <p class="text-sm text-gray-600 mb-2">Elige un avatar:</p>
+                <div class="flex gap-2 flex-wrap mb-4">
+                  ${avatarOptions.map(emoji => `
+                    <button onclick="state.newMemberAvatar = '${emoji}'; render();" 
+                      class="text-3xl p-2 rounded-lg ${state.newMemberAvatar === emoji ? 'bg-orange-200 ring-2 ring-orange-500' : 'bg-white hover:bg-gray-100'}">
+                      ${emoji}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="state.newMemberName = document.getElementById('newMemberName').value; addMember();" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+                  Guardar
+                </button>
+                <button onclick="state.showAddMember = false; state.newMemberName = ''; state.newMemberAvatar = '👤'; render();" class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${state.members.map(member => `
+              <div class="bg-gradient-to-br from-orange-100 to-amber-100 p-4 rounded-lg flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="text-4xl">${member.avatar}</div>
+                  <div class="font-semibold text-lg">${member.name}</div>
+                </div>
+                <button onclick="deleteMember('${member.id}')" class="text-red-500 hover:text-red-700">
+                  🗑️
+                </button>
+              </div>
+            `).join('')}
+          </div>
+
+          ${state.members.length === 0 ? '<p class="text-center text-gray-500 py-8">No hay miembros todavía. ¡Añade el primero!</p>' : ''}
+        </div>
+      `;
+    }
+
+    function renderBars() {
+      return `
+        <div>
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">Bares Habituales</h2>
+            <button onclick="state.showAddBar = true; render();" class="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600">
+              + Añadir Bar
+            </button>
+          </div>
+
+          ${state.showAddBar ? `
+            <div class="bg-orange-50 p-4 rounded-lg mb-6">
+              <h3 class="font-semibold mb-4">Nuevo Bar</h3>
+              <input type="text" id="newBarName" placeholder="Nombre del bar o restaurante" value="${state.newBarName}" class="w-full px-4 py-2 border rounded-lg mb-4">
+              <div class="flex gap-2">
+                <button onclick="state.newBarName = document.getElementById('newBarName').value; addBar();" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+                  Guardar
+                </button>
+                <button onclick="state.showAddBar = false; state.newBarName = ''; render();" class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            ${state.places.map(place => {
+              const timesVisited = state.payments.filter(p => p.place === place).length;
+              const totalSpent = state.payments
+                .filter(p => p.place === place)
+                .reduce((sum, p) => sum + p.totalAmount, 0);
+
+              return `
+                <div class="bg-gradient-to-br from-orange-100 to-amber-100 p-4 rounded-lg">
+                  <div class="flex items-start justify-between mb-2">
+                    <div class="flex items-center gap-2 flex-1">
+                      <span>📍</span>
+                      <div class="font-semibold text-lg">${place}</div>
+                    </div>
+                    <button onclick="deleteBar('${place}')" class="text-red-500 hover:text-red-700">
+                      🗑️
+                    </button>
+                  </div>
+                  ${timesVisited > 0 ? `
+                    <div class="text-sm text-gray-700 mt-2 space-y-1">
+                      <p>🎯 Visitas: <span class="font-semibold">${timesVisited}</span></p>
+                      <p>💰 Total gastado: <span class="font-semibold">${totalSpent.toFixed(2)}€</span></p>
+                    </div>
+                  ` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          ${state.places.length === 0 ? '<p class="text-center text-gray-500 py-8">No hay bares guardados todavía. ¡Añade el primero!</p>' : ''}
+        </div>
+      `;
+    }
+
+    // Inicialización
+    loadAllData();
+  </script>
+</body>
+</html>
