@@ -638,7 +638,7 @@
             <div class="space-y-6">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">📅 Fecha</label>
-                <input type="date" value="${state.paymentDate}" 
+                <input type="date" id="paymentDateInput" value="${state.paymentDate}" 
                   onchange="state.paymentDate = this.value;" 
                   class="w-full px-4 py-2 border rounded-lg">
               </div>
@@ -675,7 +675,7 @@
                         `).join('')}
                       </select>
                       <input type="number" step="0.01" placeholder="Importe €" 
-                        value="${payer.amount}" 
+                        value="${payer.amount || ''}" 
                         oninput="state.paymentPayers[${index}].amount = this.value;"
                         class="w-32 px-4 py-2 border rounded-lg">
                       ${state.paymentPayers.length > 1 ? `
