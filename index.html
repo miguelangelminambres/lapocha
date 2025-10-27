@@ -1,28 +1,1121 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>La Pocha en Ronda</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-</head>
-<body class="bg-gradient-to-br from-orange-50 to-amber-50 min-h-screen p-8">
-  <div class="container mx-auto">
-    <div class="bg-white rounded-lg shadow-2xl p-12 text-center max-w-2xl mx-auto">
-      <h1 class="text-5xl font-bold text-orange-600 mb-6">🍻</h1>
-      <h2 class="text-4xl font-bold text-gray-800 mb-4">La Pocha en Ronda</h2>
-      <p class="text-xl text-gray-600 mb-8">Sistema Listo</p>
+import React, { useState, useEffect } from 'react';
+import { Users, MapPin, ShoppingCart, FileText, BarChart3, Plus, Trash2, Check, X, Camera } from 'lucide-react';
+
+const BarPaymentTracker = () => {
+  const [activeTab, setActiveTab] = useState('registros');
+  const [members, setMembers] = useState([]);
+  const [bars, setBars] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [defaultMembers, setDefaultMembers] = useState([]);
+  const [orderItems, setOrderItems] = useState([]);
+  const [currentOrder, setCurrentOrder] = useState({});
+  const [games, setGames] = useState([]);
+  const [gameResults, setGameResults] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const membersData = await window.storage.get('members');
+        const barsData = await window.storage.get('bars');
+        const paymentsData = await window.storage.get('payments');
+        const defaultMembersData = await window.storage.get('defaultMembers');
+        const orderItemsData = await window.storage.get('orderItems');
+        const gamesData = await window.storage.get('games');
+        const gameResultsData = await window.storage.get('gameResults');
+
+        if (membersData) setMembers(JSON.parse(membersData.value));
+        if (barsData) setBars(JSON.parse(barsData.value));
+        if (paymentsData) setPayments(JSON.parse(paymentsData.value));
+        if (defaultMembersData) setDefaultMembers(JSON.parse(defaultMembersData.value));
+        if (orderItemsData) setOrderItems(JSON.parse(orderItemsData.value));
+        if (gamesData) setGames(JSON.parse(gamesData.value));
+        if (gameResultsData) setGameResults(JSON.parse(gameResultsData.value));
+      } catch (error) {
+        console.log('No hay datos guardados aún');
+      }
+    };
+    loadData();
+  }, []);
+
+  const saveData = async (key, data) => {
+    try {
+      await window.storage.set(key, JSON.stringify(data));
+    } catch (error) {
+      console.error('Error guardando datos:', error);
+    }
+  };
+
+  const [newMember, setNewMember] = useState({ name: '', avatar: '', photo: '' });
+
+  const addMember = () => {
+    if (newMember.name.trim()) {
+      const member = { id: Date.now(), ...newMember };
+      const updated = [...members, member];
+      setMembers(updated);
+      saveData('members', updated);
+      setNewMember({ name: '', avatar: '', photo: '' });
+    }
+  };
+
+  const handlePhotoUpload = (e, memberId = null) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const photoData = event.target.result;
+        if (memberId) {
+          const updated = members.map(m => 
+            m.id === memberId ? { ...m, photo: photoData } : m
+          );
+          setMembers(updated);
+          saveData('members', updated);
+        } else {
+          setNewMember({ ...newMember, photo: photoData });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const deleteMember = (id) => {
+    const updated = members.filter(m => m.id !== id);
+    setMembers(updated);
+    saveData('members', updated);
+  };
+
+  const toggleDefaultMember = (id) => {
+    const updated = defaultMembers.includes(id)
+      ? defaultMembers.filter(m => m !== id)
+      : [...defaultMembers, id];
+    setDefaultMembers(updated);
+    saveData('defaultMembers', updated);
+  };
+
+  const [newBar, setNewBar] = useState('');
+
+  const addBar = () => {
+    if (newBar.trim()) {
+      const bar = { id: Date.now(), name: newBar };
+      const updated = [...bars, bar];
+      setBars(updated);
+      saveData('bars', updated);
+      setNewBar('');
+    }
+  };
+
+  const deleteBar = (id) => {
+    const updated = bars.filter(b => b.id !== id);
+    setBars(updated);
+    saveData('bars', updated);
+  };
+
+  const [newItem, setNewItem] = useState('');
+
+  const addOrderItem = () => {
+    if (newItem.trim()) {
+      const item = { id: Date.now(), name: newItem };
+      const updated = [...orderItems, item];
+      setOrderItems(updated);
+      saveData('orderItems', updated);
+      setNewItem('');
+    }
+  };
+
+  const deleteOrderItem = (id) => {
+    const updated = orderItems.filter(i => i.id !== id);
+    setOrderItems(updated);
+    saveData('orderItems', updated);
+  };
+
+  const updateOrderQuantity = (itemId, delta) => {
+    setCurrentOrder(prev => ({
+      ...prev,
+      [itemId]: Math.max(0, (prev[itemId] || 0) + delta)
+    }));
+  };
+
+  const clearOrder = () => {
+    setCurrentOrder({});
+  };
+
+  const [newGame, setNewGame] = useState('');
+
+  const addGame = () => {
+    if (newGame.trim()) {
+      const game = { id: Date.now(), name: newGame };
+      const updated = [...games, game];
+      setGames(updated);
+      saveData('games', updated);
+      setNewGame('');
+    }
+  };
+
+  const deleteGame = (id) => {
+    const updated = games.filter(g => g.id !== id);
+    setGames(updated);
+    saveData('games', updated);
+  };
+
+  const [newGameResult, setNewGameResult] = useState({
+    game: '',
+    bar: '',
+    losers: [],
+    date: new Date().toISOString().split('T')[0],
+    registeredBy: ''
+  });
+
+  const addGameResult = () => {
+    if (newGameResult.game && newGameResult.losers.length > 0 && newGameResult.registeredBy) {
+      const result = { id: Date.now(), ...newGameResult };
+      const updated = [...gameResults, result];
+      setGameResults(updated);
+      saveData('gameResults', updated);
+      setNewGameResult({
+        game: '',
+        bar: '',
+        losers: [],
+        date: new Date().toISOString().split('T')[0],
+        registeredBy: ''
+      });
+    }
+  };
+
+  const deleteGameResult = (id) => {
+    const updated = gameResults.filter(r => r.id !== id);
+    setGameResults(updated);
+    saveData('gameResults', updated);
+  };
+
+  const toggleLoser = (id) => {
+    setNewGameResult(prev => ({
+      ...prev,
+      losers: prev.losers.includes(id)
+        ? prev.losers.filter(l => l !== id)
+        : [...prev.losers, id]
+    }));
+  };
+
+  const [newPayment, setNewPayment] = useState({
+    payers: [],
+    present: [...defaultMembers],
+    amount: '',
+    bar: '',
+    date: new Date().toISOString().split('T')[0],
+    registeredBy: ''
+  });
+
+  const addPayment = () => {
+    if (newPayment.payers.length > 0 && newPayment.amount && newPayment.bar && newPayment.registeredBy) {
+      const payment = { id: Date.now(), ...newPayment, amount: parseFloat(newPayment.amount) };
+      const updated = [...payments, payment];
+      setPayments(updated);
+      saveData('payments', updated);
+      // Mantener la ronda actual, solo limpiar pagadores y otros campos
+      setNewPayment({
+        payers: [],
+        present: newPayment.present, // Mantener los mismos presentes
+        amount: '',
+        bar: '',
+        date: new Date().toISOString().split('T')[0],
+        registeredBy: ''
+      });
+    }
+  };
+
+  const deletePayment = (id) => {
+    const updated = payments.filter(p => p.id !== id);
+    setPayments(updated);
+    saveData('payments', updated);
+  };
+
+  const togglePayer = (id) => {
+    setNewPayment(prev => ({
+      ...prev,
+      payers: prev.payers.includes(id)
+        ? prev.payers.filter(p => p !== id)
+        : [...prev.payers, id]
+    }));
+  };
+
+  const togglePresent = (id) => {
+    setNewPayment(prev => ({
+      ...prev,
+      present: prev.present.includes(id)
+        ? prev.present.filter(p => p !== id)
+        : [...prev.present, id]
+    }));
+  };
+
+  const calculateStats = () => {
+    const stats = members.map(member => {
+      const timesPaid = payments.filter(p => p.payers.includes(member.id)).length;
+      const timesPresent = payments.filter(p => p.present.includes(member.id)).length;
+      const timesNotPaid = timesPresent - timesPaid;
+      const totalSpent = payments
+        .filter(p => p.payers.includes(member.id))
+        .reduce((sum, p) => sum + (p.amount / p.payers.length), 0);
       
-      <div class="bg-green-50 rounded-lg p-6 mb-6">
-        <p class="text-green-700 font-bold mb-2">✓ Base de datos configurada</p>
-        <p class="text-green-700 font-bold">✓ Sistema operativo</p>
-      </div>
+      const avgSpent = timesPaid > 0 ? totalSpent / timesPaid : 0;
       
-      <div class="bg-orange-50 rounded-lg p-6">
-        <h3 class="font-bold text-lg mb-3">Funcionalidades:</h3>
-        <p class="text-sm text-gray-700">Gestión completa de pagos de grupo</p>
+      let currentStreak = 0;
+      for (let i = payments.length - 1; i >= 0; i--) {
+        if (payments[i].present.includes(member.id)) {
+          if (!payments[i].payers.includes(member.id)) {
+            currentStreak++;
+          } else {
+            break;
+          }
+        }
+      }
+
+      const shouldHavePaid = timesPresent / (timesPresent > 0 ? timesPresent : 1);
+      const actuallyPaid = timesPaid / (timesPresent > 0 ? timesPresent : 1);
+      const moralDebt = (shouldHavePaid - actuallyPaid) * 100;
+
+      const timesLost = gameResults.filter(r => r.losers.includes(member.id)).length;
+      const gamesByType = {};
+      gameResults.forEach(r => {
+        if (r.losers.includes(member.id)) {
+          gamesByType[r.game] = (gamesByType[r.game] || 0) + 1;
+        }
+      });
+
+      return {
+        member,
+        timesPaid,
+        timesPresent,
+        timesNotPaid,
+        totalSpent,
+        avgSpent,
+        currentStreak,
+        moralDebt,
+        paymentRate: timesPresent > 0 ? (timesPaid / timesPresent * 100) : 0,
+        timesLost,
+        gamesByType
+      };
+    });
+
+    const barFrequency = {};
+    payments.forEach(p => {
+      barFrequency[p.bar] = (barFrequency[p.bar] || 0) + 1;
+    });
+    const mostFrequentBar = Object.keys(barFrequency).length > 0 
+      ? Object.keys(barFrequency).reduce((a, b) => barFrequency[a] > barFrequency[b] ? a : b) 
+      : '';
+
+    const dayFrequency = {};
+    payments.forEach(p => {
+      const day = new Date(p.date).toLocaleDateString('es-ES', { weekday: 'long' });
+      dayFrequency[day] = (dayFrequency[day] || 0) + 1;
+    });
+    const preferredDay = Object.keys(dayFrequency).length > 0
+      ? Object.keys(dayFrequency).reduce((a, b) => dayFrequency[a] > dayFrequency[b] ? a : b)
+      : '';
+
+    const gameFrequency = {};
+    gameResults.forEach(r => {
+      gameFrequency[r.game] = (gameFrequency[r.game] || 0) + 1;
+    });
+
+    return { stats, mostFrequentBar, preferredDay, barFrequency, gameFrequency };
+  };
+
+  const { stats, mostFrequentBar, preferredDay, barFrequency, gameFrequency } = payments.length > 0 ? calculateStats() : { stats: [], mostFrequentBar: '', preferredDay: '', barFrequency: {}, gameFrequency: {} };
+
+  const tabs = [
+    { id: 'registros', label: 'Registros', icon: FileText },
+    { id: 'miembros', label: 'Miembros', icon: Users },
+    { id: 'bares', label: 'Bares', icon: MapPin },
+    { id: 'pedidos', label: 'Pedidos', icon: ShoppingCart },
+    { id: 'juegos', label: 'Juegos', icon: BarChart3 },
+    { id: 'estadisticas', label: 'Estadísticas', icon: BarChart3 }
+  ];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-bold text-center mb-8 text-purple-800">🍺 Calculadora de Pagos - Pandilla</h1>
+        
+        <div className="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-lg shadow">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                  activeTab === tab.id
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Icon size={18} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab === 'registros' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-purple-700">Nuevo Registro de Pago</h2>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Users size={20} className="text-blue-600" />
+                <span className="font-bold text-blue-800">Ronda Actual</span>
+              </div>
+              <p className="text-sm text-blue-700">
+                Los miembros seleccionados se mantienen automáticamente para el siguiente bar. 
+                Solo añade o quita personas cuando alguien se una o se vaya.
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block font-semibold mb-2">Quién paga:</label>
+                <div className="flex flex-wrap gap-2">
+                  {members.map(member => (
+                    <button
+                      key={member.id}
+                      onClick={() => togglePayer(member.id)}
+                      className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                        newPayment.payers.includes(member.id)
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {member.photo ? (
+                        <img src={member.photo} alt={member.name} className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <span>{member.avatar || '👤'}</span>
+                      )}
+                      {member.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-2">
+                  Quién estaba presente:
+                  <span className="ml-2 text-sm font-normal text-gray-600">
+                    ({newPayment.present.length} {newPayment.present.length === 1 ? 'persona' : 'personas'})
+                  </span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {members.map(member => (
+                    <button
+                      key={member.id}
+                      onClick={() => togglePresent(member.id)}
+                      className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                        newPayment.present.includes(member.id)
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {member.photo ? (
+                        <img src={member.photo} alt={member.name} className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <span>{member.avatar || '👤'}</span>
+                      )}
+                      {member.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Esta selección se mantiene para el siguiente registro
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-semibold mb-2">Importe (€):</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newPayment.amount}
+                    onChange={(e) => setNewPayment({...newPayment, amount: e.target.value})}
+                    className="w-full px-4 py-2 border rounded-lg"
+                    placeholder="15.50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-2">Bar/Restaurante:</label>
+                  <select
+                    value={newPayment.bar}
+                    onChange={(e) => setNewPayment({...newPayment, bar: e.target.value})}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  >
+                    <option value="">Selecciona un bar</option>
+                    {bars.map(bar => (
+                      <option key={bar.id} value={bar.name}>{bar.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-2">Fecha:</label>
+                  <input
+                    type="date"
+                    value={newPayment.date}
+                    onChange={(e) => setNewPayment({...newPayment, date: e.target.value})}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-2">📝 Apunte registrado por:</label>
+                <select
+                  value={newPayment.registeredBy}
+                  onChange={(e) => setNewPayment({...newPayment, registeredBy: e.target.value})}
+                  className="w-full px-4 py-2 border rounded-lg bg-yellow-50 border-yellow-300"
+                >
+                  <option value="">Selecciona quién hace el apunte</option>
+                  {members.map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-gray-600 mt-1">Esta persona será responsable del registro por si hay errores</p>
+              </div>
+
+              <button
+                onClick={addPayment}
+                className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition flex items-center justify-center gap-2"
+              >
+                <Plus size={20} />
+                Añadir Registro
+              </button>
+            </div>
+
+            <div className="mt-8">
+              <h3 className="text-xl font-bold mb-4">Historial de Pagos</h3>
+              <div className="space-y-3">
+                {payments.slice().reverse().map(payment => {
+                  const registeredByMember = members.find(m => m.id === payment.registeredBy);
+                  return (
+                    <div key={payment.id} className="bg-gray-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="font-semibold text-lg">
+                            {payment.payers.map(id => members.find(m => m.id === id)?.name).join(', ')} pagó {payment.amount.toFixed(2)}€
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1">
+                            {payment.bar} • {new Date(payment.date).toLocaleDateString('es-ES')}
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            Presentes: {payment.present.map(id => members.find(m => m.id === id)?.name).join(', ')}
+                          </div>
+                          {registeredByMember && (
+                            <div className="text-xs text-yellow-700 bg-yellow-100 inline-block px-2 py-1 rounded mt-2">
+                              📝 Apuntado por: {registeredByMember.name}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => deletePayment(payment.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'miembros' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-purple-700">Gestión de Miembros</h2>
+            
+            <div className="mb-6 space-y-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMember.name}
+                  onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+                  placeholder="Nombre del miembro"
+                  className="flex-1 px-4 py-2 border rounded-lg"
+                />
+                <input
+                  type="text"
+                  value={newMember.avatar}
+                  onChange={(e) => setNewMember({...newMember, avatar: e.target.value})}
+                  placeholder="Emoji 😊"
+                  className="w-24 px-4 py-2 border rounded-lg text-center"
+                />
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 cursor-pointer transition">
+                  <Camera size={20} />
+                  Subir Foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handlePhotoUpload(e)}
+                    className="hidden"
+                  />
+                </label>
+                
+                {newMember.photo && (
+                  <div className="flex items-center gap-2">
+                    <img src={newMember.photo} alt="Preview" className="w-12 h-12 rounded-full object-cover" />
+                    <button
+                      onClick={() => setNewMember({...newMember, photo: ''})}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                )}
+                
+                <button
+                  onClick={addMember}
+                  className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
+                >
+                  <Plus size={20} />
+                  Añadir Miembro
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {members.map(member => (
+                <div key={member.id} className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      {member.photo ? (
+                        <img src={member.photo} alt={member.name} className="w-16 h-16 rounded-full object-cover border-2 border-purple-300" />
+                      ) : (
+                        <div className="text-5xl">{member.avatar || '👤'}</div>
+                      )}
+                      <div>
+                        <div className="font-semibold text-lg">{member.name}</div>
+                        <button
+                          onClick={() => toggleDefaultMember(member.id)}
+                          className={`text-sm flex items-center gap-1 ${
+                            defaultMembers.includes(member.id) ? 'text-green-600' : 'text-gray-500'
+                          }`}
+                        >
+                          {defaultMembers.includes(member.id) ? <Check size={14} /> : <X size={14} />}
+                          Miembro por defecto
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deleteMember(member.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                  
+                  <label className="flex items-center justify-center gap-2 bg-blue-100 text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-200 cursor-pointer transition text-sm">
+                    <Camera size={16} />
+                    {member.photo ? 'Cambiar foto' : 'Añadir foto'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handlePhotoUpload(e, member.id)}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'bares' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-purple-700">Gestión de Bares</h2>
+            
+            <div className="flex gap-2 mb-6">
+              <input
+                type="text"
+                value={newBar}
+                onChange={(e) => setNewBar(e.target.value)}
+                placeholder="Nombre del bar o restaurante"
+                className="flex-1 px-4 py-2 border rounded-lg"
+              />
+              <button
+                onClick={addBar}
+                className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {bars.map(bar => (
+                <div key={bar.id} className="bg-gray-50 p-4 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <MapPin size={24} className="text-purple-600" />
+                    <span className="font-semibold">{bar.name}</span>
+                  </div>
+                  <button
+                    onClick={() => deleteBar(bar.id)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'pedidos' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-purple-700">Gestor de Pedidos</h2>
+            
+            <div className="flex gap-2 mb-6">
+              <input
+                type="text"
+                value={newItem}
+                onChange={(e) => setNewItem(e.target.value)}
+                placeholder="Artículo (ej: Caña, Coca-Cola, Café...)"
+                className="flex-1 px-4 py-2 border rounded-lg"
+              />
+              <button
+                onClick={addOrderItem}
+                className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-xl font-bold mb-3">Artículos Disponibles</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {orderItems.map(item => (
+                  <div key={item.id} className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold">{item.name}</span>
+                      <button
+                        onClick={() => deleteOrderItem(item.id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => updateOrderQuantity(item.id, -1)}
+                        className="bg-red-500 text-white w-10 h-10 rounded-lg hover:bg-red-600 transition font-bold"
+                      >
+                        -
+                      </button>
+                      <span className="text-2xl font-bold w-12 text-center">
+                        {currentOrder[item.id] || 0}
+                      </span>
+                      <button
+                        onClick={() => updateOrderQuantity(item.id, 1)}
+                        className="bg-green-500 text-white w-10 h-10 rounded-lg hover:bg-green-600 transition font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-purple-50 p-6 rounded-lg">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">Resumen del Pedido</h3>
+                <button
+                  onClick={clearOrder}
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm"
+                >
+                  Limpiar
+                </button>
+              </div>
+              {Object.keys(currentOrder).filter(id => currentOrder[id] > 0).length > 0 ? (
+                <div className="space-y-2">
+                  {Object.keys(currentOrder)
+                    .filter(id => currentOrder[id] > 0)
+                    .map(id => {
+                      const item = orderItems.find(i => i.id === parseInt(id));
+                      return (
+                        <div key={id} className="flex justify-between text-lg">
+                          <span>{item?.name}</span>
+                          <span className="font-bold">{currentOrder[id]}</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center">No hay artículos en el pedido</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'juegos' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-purple-700">🎲 Gestión de Juegos</h2>
+            
+            <div className="flex gap-2 mb-6">
+              <input
+                type="text"
+                value={newGame}
+                onChange={(e) => setNewGame(e.target.value)}
+                placeholder="Nombre del juego (ej: Chinos, Dardos, Futbolín...)"
+                className="flex-1 px-4 py-2 border rounded-lg"
+              />
+              <button
+                onClick={addGame}
+                className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-bold mb-3">Juegos Disponibles</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {games.map(game => (
+                  <div key={game.id} className="bg-gray-50 p-4 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🎮</span>
+                      <span className="font-semibold">{game.name}</span>
+                    </div>
+                    <button
+                      onClick={() => deleteGame(game.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-xl font-bold mb-4">Registrar Resultado de Juego</h3>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-semibold mb-2">Juego:</label>
+                    <select
+                      value={newGameResult.game}
+                      onChange={(e) => setNewGameResult({...newGameResult, game: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg"
+                    >
+                      <option value="">Selecciona un juego</option>
+                      {games.map(game => (
+                        <option key={game.id} value={game.name}>{game.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-2">Bar (opcional):</label>
+                    <select
+                      value={newGameResult.bar}
+                      onChange={(e) => setNewGameResult({...newGameResult, bar: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg"
+                    >
+                      <option value="">Selecciona un bar</option>
+                      {bars.map(bar => (
+                        <option key={bar.id} value={bar.name}>{bar.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-2">Quién perdió:</label>
+                  <div className="flex flex-wrap gap-2">
+                    {members.map(member => (
+                      <button
+                        key={member.id}
+                        onClick={() => toggleLoser(member.id)}
+                        className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                          newGameResult.losers.includes(member.id)
+                            ? 'bg-red-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {member.photo ? (
+                          <img src={member.photo} alt={member.name} className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <span>{member.avatar || '👤'}</span>
+                        )}
+                        {member.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-semibold mb-2">Fecha:</label>
+                    <input
+                      type="date"
+                      value={newGameResult.date}
+                      onChange={(e) => setNewGameResult({...newGameResult, date: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-2">📝 Registrado por:</label>
+                    <select
+                      value={newGameResult.registeredBy}
+                      onChange={(e) => setNewGameResult({...newGameResult, registeredBy: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg bg-yellow-50 border-yellow-300"
+                    >
+                      <option value="">Selecciona quién registra</option>
+                      {members.map(member => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  onClick={addGameResult}
+                  className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition flex items-center justify-center gap-2"
+                >
+                  <Plus size={20} />
+                  Registrar Resultado
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <h3 className="text-xl font-bold mb-4">Historial de Juegos</h3>
+              <div className="space-y-3">
+                {gameResults.slice().reverse().map(result => {
+                  const registeredByMember = members.find(m => m.id === result.registeredBy);
+                  return (
+                    <div key={result.id} className="bg-gray-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="font-semibold text-lg">
+                            🎮 {result.game} - Perdió: {result.losers.map(id => members.find(m => m.id === id)?.name).join(', ')}
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1">
+                            {result.bar && `${result.bar} • `}{new Date(result.date).toLocaleDateString('es-ES')}
+                          </div>
+                          {registeredByMember && (
+                            <div className="text-xs text-yellow-700 bg-yellow-100 inline-block px-2 py-1 rounded mt-2">
+                              📝 Apuntado por: {registeredByMember.name}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => deleteGameResult(result.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'estadisticas' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-6 text-purple-700">Estadísticas del Grupo</h2>
+            
+            {payments.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No hay datos suficientes para mostrar estadísticas</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                  <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg">
+                    <div className="text-sm opacity-90">Total de Salidas</div>
+                    <div className="text-4xl font-bold">{payments.length}</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-lg">
+                    <div className="text-sm opacity-90">Bar Favorito</div>
+                    <div className="text-2xl font-bold">{mostFrequentBar}</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-lg">
+                    <div className="text-sm opacity-90">Día Preferido</div>
+                    <div className="text-2xl font-bold capitalize">{preferredDay}</div>
+                  </div>
+                </div>
+
+                <h3 className="text-xl font-bold mb-4">Estadísticas Individuales</h3>
+                <div className="space-y-4">
+                  {stats.sort((a, b) => b.timesPaid - a.timesPaid).map(stat => (
+                    <div key={stat.member.id} className="bg-gray-50 p-5 rounded-lg">
+                      <div className="flex items-center gap-3 mb-3">
+                        {stat.member.photo ? (
+                          <img src={stat.member.photo} alt={stat.member.name} className="w-16 h-16 rounded-full object-cover border-2 border-purple-300" />
+                        ) : (
+                          <div className="text-4xl">{stat.member.avatar || '👤'}</div>
+                        )}
+                        <div className="flex-1">
+                          <div className="font-bold text-xl">{stat.member.name}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <div className="text-gray-600">Veces que pagó</div>
+                          <div className="font-bold text-lg text-green-600">{stat.timesPaid}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-600">Veces presente</div>
+                          <div className="font-bold text-lg">{stat.timesPresent}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-600">Veces sin pagar</div>
+                          <div className="font-bold text-lg text-red-600">{stat.timesNotPaid}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-600">Racha actual</div>
+                          <div className="font-bold text-lg">{stat.currentStreak} 🔥</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-600">Total gastado</div>
+                          <div className="font-bold text-lg">{stat.totalSpent.toFixed(2)}€</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-600">Promedio por pago</div>
+                          <div className="font-bold text-lg">{stat.avgSpent.toFixed(2)}€</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-600">Tasa de pago</div>
+                          <div className="font-bold text-lg">{stat.paymentRate.toFixed(0)}%</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-600">Deuda moral</div>
+                          <div className={`font-bold text-lg ${stat.moralDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {stat.moralDebt > 0 ? '+' : ''}{stat.moralDebt.toFixed(0)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {stat.timesLost > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="font-semibold text-sm text-gray-700 mb-2">🎮 Estadísticas de Juegos:</div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <div className="text-gray-600">Veces perdidas</div>
+                              <div className="font-bold text-lg text-red-600">{stat.timesLost}</div>
+                            </div>
+                            {Object.entries(stat.gamesByType).map(([game, count]) => (
+                              <div key={game}>
+                                <div className="text-gray-600">{game}</div>
+                                <div className="font-bold text-lg">{count}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-8">
+                  <h3 className="text-xl font-bold mb-4">Frecuencia de Bares</h3>
+                  <div className="space-y-2">
+                    {Object.entries(barFrequency)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([bar, count]) => (
+                        <div key={bar} className="flex items-center gap-3">
+                          <div className="flex-1 bg-gray-200 rounded-full h-8 relative overflow-hidden">
+                            <div
+                              className="bg-gradient-to-r from-purple-500 to-blue-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${(count / payments.length) * 100}%` }}
+                            />
+                            <div className="absolute inset-0 flex items-center px-3 font-semibold text-sm">
+                              {bar}
+                            </div>
+                          </div>
+                          <div className="font-bold text-lg min-w-[60px] text-right">
+                            {count} {count === 1 ? 'vez' : 'veces'}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {Object.keys(gameFrequency).length > 0 && (
+                  <div className="mt-8">
+                    <h3 className="text-xl font-bold mb-4">Frecuencia de Juegos</h3>
+                    <div className="space-y-2">
+                      {Object.entries(gameFrequency)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([game, count]) => (
+                          <div key={game} className="flex items-center gap-3">
+                            <div className="flex-1 bg-gray-200 rounded-full h-8 relative overflow-hidden">
+                              <div
+                                className="bg-gradient-to-r from-red-500 to-orange-500 h-full rounded-full transition-all duration-500"
+                                style={{ width: `${(count / gameResults.length) * 100}%` }}
+                              />
+                              <div className="absolute inset-0 flex items-center px-3 font-semibold text-sm">
+                                {game}
+                              </div>
+                            </div>
+                            <div className="font-bold text-lg min-w-[60px] text-right">
+                              {count} {count === 1 ? 'vez' : 'veces'}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-8">
+                  <h3 className="text-xl font-bold mb-4">🏆 Rankings</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-gradient-to-br from-yellow-100 to-orange-100 p-4 rounded-lg">
+                      <div className="font-bold text-lg mb-2">💰 Más Solidario</div>
+                      {stats.length > 0 && (
+                        <div className="text-xl">
+                          {stats.reduce((a, b) => a.paymentRate > b.paymentRate ? a : b).member.avatar || '👤'} {stats.reduce((a, b) => a.paymentRate > b.paymentRate ? a : b).member.name}
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-gradient-to-br from-red-100 to-pink-100 p-4 rounded-lg">
+                      <div className="font-bold text-lg mb-2">🔥 Mayor Racha sin Pagar</div>
+                      {stats.length > 0 && (
+                        <div className="text-xl">
+                          {stats.reduce((a, b) => a.currentStreak > b.currentStreak ? a : b).member.avatar || '👤'} {stats.reduce((a, b) => a.currentStreak > b.currentStreak ? a : b).member.name} ({stats.reduce((a, b) => a.currentStreak > b.currentStreak ? a : b).currentStreak})
+                        </div>
+                      )}
+                    </div>
+                    {stats.some(s => s.timesLost > 0) && (
+                      <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-4 rounded-lg">
+                        <div className="font-bold text-lg mb-2">🎮 Más Derrotas</div>
+                        {stats.length > 0 && (
+                          <div className="text-xl">
+                            {stats.reduce((a, b) => a.timesLost > b.timesLost ? a : b).member.avatar || '👤'} {stats.reduce((a, b) => a.timesLost > b.timesLost ? a : b).member.name} ({stats.reduce((a, b) => a.timesLost > b.timesLost ? a : b).timesLost})
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
-  </div>
-</body>
-</html>
+  );
+};
+
+export default BarPaymentTracker;
