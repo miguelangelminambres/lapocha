@@ -1,1121 +1,1038 @@
-import React, { useState, useEffect } from 'react';
-import { Users, MapPin, ShoppingCart, FileText, BarChart3, Plus, Trash2, Check, X, Camera } from 'lucide-react';
-
-const BarPaymentTracker = () => {
-  const [activeTab, setActiveTab] = useState('registros');
-  const [members, setMembers] = useState([]);
-  const [bars, setBars] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [defaultMembers, setDefaultMembers] = useState([]);
-  const [orderItems, setOrderItems] = useState([]);
-  const [currentOrder, setCurrentOrder] = useState({});
-  const [games, setGames] = useState([]);
-  const [gameResults, setGameResults] = useState([]);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const membersData = await window.storage.get('members');
-        const barsData = await window.storage.get('bars');
-        const paymentsData = await window.storage.get('payments');
-        const defaultMembersData = await window.storage.get('defaultMembers');
-        const orderItemsData = await window.storage.get('orderItems');
-        const gamesData = await window.storage.get('games');
-        const gameResultsData = await window.storage.get('gameResults');
-
-        if (membersData) setMembers(JSON.parse(membersData.value));
-        if (barsData) setBars(JSON.parse(barsData.value));
-        if (paymentsData) setPayments(JSON.parse(paymentsData.value));
-        if (defaultMembersData) setDefaultMembers(JSON.parse(defaultMembersData.value));
-        if (orderItemsData) setOrderItems(JSON.parse(orderItemsData.value));
-        if (gamesData) setGames(JSON.parse(gamesData.value));
-        if (gameResultsData) setGameResults(JSON.parse(gameResultsData.value));
-      } catch (error) {
-        console.log('No hay datos guardados aún');
-      }
-    };
-    loadData();
-  }, []);
-
-  const saveData = async (key, data) => {
-    try {
-      await window.storage.set(key, JSON.stringify(data));
-    } catch (error) {
-      console.error('Error guardando datos:', error);
-    }
-  };
-
-  const [newMember, setNewMember] = useState({ name: '', avatar: '', photo: '' });
-
-  const addMember = () => {
-    if (newMember.name.trim()) {
-      const member = { id: Date.now(), ...newMember };
-      const updated = [...members, member];
-      setMembers(updated);
-      saveData('members', updated);
-      setNewMember({ name: '', avatar: '', photo: '' });
-    }
-  };
-
-  const handlePhotoUpload = (e, memberId = null) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const photoData = event.target.result;
-        if (memberId) {
-          const updated = members.map(m => 
-            m.id === memberId ? { ...m, photo: photoData } : m
-          );
-          setMembers(updated);
-          saveData('members', updated);
-        } else {
-          setNewMember({ ...newMember, photo: photoData });
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Bares - Grupo de Amigos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
-  const deleteMember = (id) => {
-    const updated = members.filter(m => m.id !== id);
-    setMembers(updated);
-    saveData('members', updated);
-  };
-
-  const toggleDefaultMember = (id) => {
-    const updated = defaultMembers.includes(id)
-      ? defaultMembers.filter(m => m !== id)
-      : [...defaultMembers, id];
-    setDefaultMembers(updated);
-    saveData('defaultMembers', updated);
-  };
-
-  const [newBar, setNewBar] = useState('');
-
-  const addBar = () => {
-    if (newBar.trim()) {
-      const bar = { id: Date.now(), name: newBar };
-      const updated = [...bars, bar];
-      setBars(updated);
-      saveData('bars', updated);
-      setNewBar('');
-    }
-  };
-
-  const deleteBar = (id) => {
-    const updated = bars.filter(b => b.id !== id);
-    setBars(updated);
-    saveData('bars', updated);
-  };
-
-  const [newItem, setNewItem] = useState('');
-
-  const addOrderItem = () => {
-    if (newItem.trim()) {
-      const item = { id: Date.now(), name: newItem };
-      const updated = [...orderItems, item];
-      setOrderItems(updated);
-      saveData('orderItems', updated);
-      setNewItem('');
-    }
-  };
-
-  const deleteOrderItem = (id) => {
-    const updated = orderItems.filter(i => i.id !== id);
-    setOrderItems(updated);
-    saveData('orderItems', updated);
-  };
-
-  const updateOrderQuantity = (itemId, delta) => {
-    setCurrentOrder(prev => ({
-      ...prev,
-      [itemId]: Math.max(0, (prev[itemId] || 0) + delta)
-    }));
-  };
-
-  const clearOrder = () => {
-    setCurrentOrder({});
-  };
-
-  const [newGame, setNewGame] = useState('');
-
-  const addGame = () => {
-    if (newGame.trim()) {
-      const game = { id: Date.now(), name: newGame };
-      const updated = [...games, game];
-      setGames(updated);
-      saveData('games', updated);
-      setNewGame('');
-    }
-  };
-
-  const deleteGame = (id) => {
-    const updated = games.filter(g => g.id !== id);
-    setGames(updated);
-    saveData('games', updated);
-  };
-
-  const [newGameResult, setNewGameResult] = useState({
-    game: '',
-    bar: '',
-    losers: [],
-    date: new Date().toISOString().split('T')[0],
-    registeredBy: ''
-  });
-
-  const addGameResult = () => {
-    if (newGameResult.game && newGameResult.losers.length > 0 && newGameResult.registeredBy) {
-      const result = { id: Date.now(), ...newGameResult };
-      const updated = [...gameResults, result];
-      setGameResults(updated);
-      saveData('gameResults', updated);
-      setNewGameResult({
-        game: '',
-        bar: '',
-        losers: [],
-        date: new Date().toISOString().split('T')[0],
-        registeredBy: ''
-      });
-    }
-  };
-
-  const deleteGameResult = (id) => {
-    const updated = gameResults.filter(r => r.id !== id);
-    setGameResults(updated);
-    saveData('gameResults', updated);
-  };
-
-  const toggleLoser = (id) => {
-    setNewGameResult(prev => ({
-      ...prev,
-      losers: prev.losers.includes(id)
-        ? prev.losers.filter(l => l !== id)
-        : [...prev.losers, id]
-    }));
-  };
-
-  const [newPayment, setNewPayment] = useState({
-    payers: [],
-    present: [...defaultMembers],
-    amount: '',
-    bar: '',
-    date: new Date().toISOString().split('T')[0],
-    registeredBy: ''
-  });
-
-  const addPayment = () => {
-    if (newPayment.payers.length > 0 && newPayment.amount && newPayment.bar && newPayment.registeredBy) {
-      const payment = { id: Date.now(), ...newPayment, amount: parseFloat(newPayment.amount) };
-      const updated = [...payments, payment];
-      setPayments(updated);
-      saveData('payments', updated);
-      // Mantener la ronda actual, solo limpiar pagadores y otros campos
-      setNewPayment({
-        payers: [],
-        present: newPayment.present, // Mantener los mismos presentes
-        amount: '',
-        bar: '',
-        date: new Date().toISOString().split('T')[0],
-        registeredBy: ''
-      });
-    }
-  };
-
-  const deletePayment = (id) => {
-    const updated = payments.filter(p => p.id !== id);
-    setPayments(updated);
-    saveData('payments', updated);
-  };
-
-  const togglePayer = (id) => {
-    setNewPayment(prev => ({
-      ...prev,
-      payers: prev.payers.includes(id)
-        ? prev.payers.filter(p => p !== id)
-        : [...prev.payers, id]
-    }));
-  };
-
-  const togglePresent = (id) => {
-    setNewPayment(prev => ({
-      ...prev,
-      present: prev.present.includes(id)
-        ? prev.present.filter(p => p !== id)
-        : [...prev.present, id]
-    }));
-  };
-
-  const calculateStats = () => {
-    const stats = members.map(member => {
-      const timesPaid = payments.filter(p => p.payers.includes(member.id)).length;
-      const timesPresent = payments.filter(p => p.present.includes(member.id)).length;
-      const timesNotPaid = timesPresent - timesPaid;
-      const totalSpent = payments
-        .filter(p => p.payers.includes(member.id))
-        .reduce((sum, p) => sum + (p.amount / p.payers.length), 0);
-      
-      const avgSpent = timesPaid > 0 ? totalSpent / timesPaid : 0;
-      
-      let currentStreak = 0;
-      for (let i = payments.length - 1; i >= 0; i--) {
-        if (payments[i].present.includes(member.id)) {
-          if (!payments[i].payers.includes(member.id)) {
-            currentStreak++;
-          } else {
-            break;
-          }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
-      }
 
-      const shouldHavePaid = timesPresent / (timesPresent > 0 ? timesPresent : 1);
-      const actuallyPaid = timesPaid / (timesPresent > 0 ? timesPresent : 1);
-      const moralDebt = (shouldHavePaid - actuallyPaid) * 100;
-
-      const timesLost = gameResults.filter(r => r.losers.includes(member.id)).length;
-      const gamesByType = {};
-      gameResults.forEach(r => {
-        if (r.losers.includes(member.id)) {
-          gamesByType[r.game] = (gamesByType[r.game] || 0) + 1;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-      });
 
-      return {
-        member,
-        timesPaid,
-        timesPresent,
-        timesNotPaid,
-        totalSpent,
-        avgSpent,
-        currentStreak,
-        moralDebt,
-        paymentRate: timesPresent > 0 ? (timesPaid / timesPresent * 100) : 0,
-        timesLost,
-        gamesByType
-      };
-    });
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
 
-    const barFrequency = {};
-    payments.forEach(p => {
-      barFrequency[p.bar] = (barFrequency[p.bar] || 0) + 1;
-    });
-    const mostFrequentBar = Object.keys(barFrequency).length > 0 
-      ? Object.keys(barFrequency).reduce((a, b) => barFrequency[a] > barFrequency[b] ? a : b) 
-      : '';
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e5e7eb;
+        }
 
-    const dayFrequency = {};
-    payments.forEach(p => {
-      const day = new Date(p.date).toLocaleDateString('es-ES', { weekday: 'long' });
-      dayFrequency[day] = (dayFrequency[day] || 0) + 1;
-    });
-    const preferredDay = Object.keys(dayFrequency).length > 0
-      ? Object.keys(dayFrequency).reduce((a, b) => dayFrequency[a] > dayFrequency[b] ? a : b)
-      : '';
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            font-size: 1.1em;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
 
-    const gameFrequency = {};
-    gameResults.forEach(r => {
-      gameFrequency[r.game] = (gameFrequency[r.game] || 0) + 1;
-    });
+        .tab:hover {
+            color: #667eea;
+        }
 
-    return { stats, mostFrequentBar, preferredDay, barFrequency, gameFrequency };
-  };
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
 
-  const { stats, mostFrequentBar, preferredDay, barFrequency, gameFrequency } = payments.length > 0 ? calculateStats() : { stats: [], mostFrequentBar: '', preferredDay: '', barFrequency: {}, gameFrequency: {} };
+        .tab-content {
+            display: none;
+        }
 
-  const tabs = [
-    { id: 'registros', label: 'Registros', icon: FileText },
-    { id: 'miembros', label: 'Miembros', icon: Users },
-    { id: 'bares', label: 'Bares', icon: MapPin },
-    { id: 'pedidos', label: 'Pedidos', icon: ShoppingCart },
-    { id: 'juegos', label: 'Juegos', icon: BarChart3 },
-    { id: 'estadisticas', label: 'Estadísticas', icon: BarChart3 }
-  ];
+        .tab-content.active {
+            display: block;
+        }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8 text-purple-800">🍺 Calculadora de Pagos - Pandilla</h1>
-        
-        <div className="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-lg shadow">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                  activeTab === tab.id
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Icon size={18} />
-                {tab.label}
-              </button>
-            );
-          })}
+        .section {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            color: #374151;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #4b5563;
+            font-weight: 500;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        .button-secondary {
+            background: #6b7280;
+        }
+
+        .button-secondary:hover {
+            background: #4b5563;
+        }
+
+        .list {
+            list-style: none;
+        }
+
+        .list-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .list-item-content {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+
+        .delete-btn {
+            background: #ef4444;
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .delete-btn:hover {
+            background: #dc2626;
+        }
+
+        .balance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .balance-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .balance-card h3 {
+            color: #374151;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .balance-amount {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .balance-positive {
+            color: #10b981;
+        }
+
+        .balance-negative {
+            color: #ef4444;
+        }
+
+        .balance-neutral {
+            color: #6b7280;
+        }
+
+        .history-list {
+            list-style: none;
+        }
+
+        .history-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .history-date {
+            color: #6b7280;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .history-details {
+            color: #374151;
+            margin-bottom: 5px;
+        }
+
+        .history-amount {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #6b7280;
+            margin-top: 5px;
+        }
+
+        .back-button {
+            background: #3b82f6;
+            margin-bottom: 20px;
+        }
+
+        .back-button:hover {
+            background: #2563eb;
+        }
+
+        .avatar-selector {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .avatar-option {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s;
+            font-size: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f3f4f6;
+        }
+
+        .avatar-option:hover {
+            transform: scale(1.1);
+            border-color: #3b82f6;
+        }
+
+        .avatar-option.selected {
+            border-color: #2563eb;
+            background: #dbeafe;
+        }
+
+        .avatar-display {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            background: #f3f4f6;
+            margin-right: 10px;
+        }
+
+        .edit-button {
+            background: #f59e0b;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+
+        .edit-button:hover {
+            background: #d97706;
+        }
+
+        .history-item-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .custom-avatar-input {
+            display: none;
+        }
+
+        .custom-avatar-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px dashed #9ca3af;
+            transition: all 0.3s;
+            background: #f3f4f6;
+            font-size: 24px;
+        }
+
+        .custom-avatar-label:hover {
+            border-color: #3b82f6;
+            background: #dbeafe;
+        }
+
+        .avatar-preview {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-close {
+            background: #ef4444;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍻 Gestión de Bares</h1>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('miembros')">👥 Miembros</button>
+            <button class="tab" onclick="showTab('bares')">🏪 Bares</button>
+            <button class="tab" onclick="showTab('pagos')">💰 Registrar Pago</button>
+            <button class="tab" onclick="showTab('balances')">📊 Balances</button>
+            <button class="tab" onclick="showTab('historial')">📜 Historial</button>
         </div>
 
-        {activeTab === 'registros' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-4 text-purple-700">Nuevo Registro de Pago</h2>
-            
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Users size={20} className="text-blue-600" />
-                <span className="font-bold text-blue-800">Ronda Actual</span>
-              </div>
-              <p className="text-sm text-blue-700">
-                Los miembros seleccionados se mantienen automáticamente para el siguiente bar. 
-                Solo añade o quita personas cuando alguien se una o se vaya.
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block font-semibold mb-2">Quién paga:</label>
-                <div className="flex flex-wrap gap-2">
-                  {members.map(member => (
-                    <button
-                      key={member.id}
-                      onClick={() => togglePayer(member.id)}
-                      className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
-                        newPayment.payers.includes(member.id)
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                    >
-                      {member.photo ? (
-                        <img src={member.photo} alt={member.name} className="w-6 h-6 rounded-full object-cover" />
-                      ) : (
-                        <span>{member.avatar || '👤'}</span>
-                      )}
-                      {member.name}
-                    </button>
-                  ))}
+        <!-- TAB MIEMBROS -->
+        <div id="miembros" class="tab-content active">
+            <div class="section">
+                <h2>Añadir Miembro</h2>
+                <div class="form-group">
+                    <label>Nombre del Miembro:</label>
+                    <input type="text" id="memberName" placeholder="Ej: Juan">
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-2">
-                  Quién estaba presente:
-                  <span className="ml-2 text-sm font-normal text-gray-600">
-                    ({newPayment.present.length} {newPayment.present.length === 1 ? 'persona' : 'personas'})
-                  </span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {members.map(member => (
-                    <button
-                      key={member.id}
-                      onClick={() => togglePresent(member.id)}
-                      className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
-                        newPayment.present.includes(member.id)
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                    >
-                      {member.photo ? (
-                        <img src={member.photo} alt={member.name} className="w-6 h-6 rounded-full object-cover" />
-                      ) : (
-                        <span>{member.avatar || '👤'}</span>
-                      )}
-                      {member.name}
-                    </button>
-                  ))}
+                <div class="form-group">
+                    <label>Selecciona un Avatar:</label>
+                    <div class="avatar-selector" id="memberAvatarSelector"></div>
+                    <input type="file" id="memberCustomAvatar" class="custom-avatar-input" accept="image/*">
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  💡 Esta selección se mantiene para el siguiente registro
-                </p>
-              </div>
+                <button onclick="addMember()">➕ Añadir Miembro</button>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-semibold mb-2">Importe (€):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newPayment.amount}
-                    onChange={(e) => setNewPayment({...newPayment, amount: e.target.value})}
-                    className="w-full px-4 py-2 border rounded-lg"
-                    placeholder="15.50"
-                  />
+            <div class="section">
+                <h2>Miembros del Grupo</h2>
+                <ul id="membersList" class="list"></ul>
+            </div>
+        </div>
+
+        <!-- TAB BARES -->
+        <div id="bares" class="tab-content">
+            <div class="section">
+                <h2>Añadir Bar</h2>
+                <div class="form-group">
+                    <label>Nombre del Bar:</label>
+                    <input type="text" id="barName" placeholder="Ej: La Taberna">
                 </div>
-
-                <div>
-                  <label className="block font-semibold mb-2">Bar/Restaurante:</label>
-                  <select
-                    value={newPayment.bar}
-                    onChange={(e) => setNewPayment({...newPayment, bar: e.target.value})}
-                    className="w-full px-4 py-2 border rounded-lg"
-                  >
-                    <option value="">Selecciona un bar</option>
-                    {bars.map(bar => (
-                      <option key={bar.id} value={bar.name}>{bar.name}</option>
-                    ))}
-                  </select>
+                <div class="form-group">
+                    <label>Selecciona un Avatar:</label>
+                    <div class="avatar-selector" id="barAvatarSelector"></div>
+                    <input type="file" id="barCustomAvatar" class="custom-avatar-input" accept="image/*">
                 </div>
-
-                <div>
-                  <label className="block font-semibold mb-2">Fecha:</label>
-                  <input
-                    type="date"
-                    value={newPayment.date}
-                    onChange={(e) => setNewPayment({...newPayment, date: e.target.value})}
-                    className="w-full px-4 py-2 border rounded-lg"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-2">📝 Apunte registrado por:</label>
-                <select
-                  value={newPayment.registeredBy}
-                  onChange={(e) => setNewPayment({...newPayment, registeredBy: e.target.value})}
-                  className="w-full px-4 py-2 border rounded-lg bg-yellow-50 border-yellow-300"
-                >
-                  <option value="">Selecciona quién hace el apunte</option>
-                  {members.map(member => (
-                    <option key={member.id} value={member.id}>
-                      {member.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-sm text-gray-600 mt-1">Esta persona será responsable del registro por si hay errores</p>
-              </div>
-
-              <button
-                onClick={addPayment}
-                className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition flex items-center justify-center gap-2"
-              >
-                <Plus size={20} />
-                Añadir Registro
-              </button>
+                <button onclick="addBar()">➕ Añadir Bar</button>
             </div>
 
-            <div className="mt-8">
-              <h3 className="text-xl font-bold mb-4">Historial de Pagos</h3>
-              <div className="space-y-3">
-                {payments.slice().reverse().map(payment => {
-                  const registeredByMember = members.find(m => m.id === payment.registeredBy);
-                  return (
-                    <div key={payment.id} className="bg-gray-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="font-semibold text-lg">
-                            {payment.payers.map(id => members.find(m => m.id === id)?.name).join(', ')} pagó {payment.amount.toFixed(2)}€
-                          </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            {payment.bar} • {new Date(payment.date).toLocaleDateString('es-ES')}
-                          </div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            Presentes: {payment.present.map(id => members.find(m => m.id === id)?.name).join(', ')}
-                          </div>
-                          {registeredByMember && (
-                            <div className="text-xs text-yellow-700 bg-yellow-100 inline-block px-2 py-1 rounded mt-2">
-                              📝 Apuntado por: {registeredByMember.name}
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => deletePayment(payment.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            <div class="section">
+                <h2>Bares Registrados</h2>
+                <ul id="barsList" class="list"></ul>
             </div>
-          </div>
-        )}
+        </div>
 
-        {activeTab === 'miembros' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-4 text-purple-700">Gestión de Miembros</h2>
-            
-            <div className="mb-6 space-y-4">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newMember.name}
-                  onChange={(e) => setNewMember({...newMember, name: e.target.value})}
-                  placeholder="Nombre del miembro"
-                  className="flex-1 px-4 py-2 border rounded-lg"
-                />
-                <input
-                  type="text"
-                  value={newMember.avatar}
-                  onChange={(e) => setNewMember({...newMember, avatar: e.target.value})}
-                  placeholder="Emoji 😊"
-                  className="w-24 px-4 py-2 border rounded-lg text-center"
-                />
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 cursor-pointer transition">
-                  <Camera size={20} />
-                  Subir Foto
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handlePhotoUpload(e)}
-                    className="hidden"
-                  />
-                </label>
-                
-                {newMember.photo && (
-                  <div className="flex items-center gap-2">
-                    <img src={newMember.photo} alt="Preview" className="w-12 h-12 rounded-full object-cover" />
-                    <button
-                      onClick={() => setNewMember({...newMember, photo: ''})}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
-                )}
-                
-                <button
-                  onClick={addMember}
-                  className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
-                >
-                  <Plus size={20} />
-                  Añadir Miembro
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {members.map(member => (
-                <div key={member.id} className="bg-gray-50 p-4 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      {member.photo ? (
-                        <img src={member.photo} alt={member.name} className="w-16 h-16 rounded-full object-cover border-2 border-purple-300" />
-                      ) : (
-                        <div className="text-5xl">{member.avatar || '👤'}</div>
-                      )}
-                      <div>
-                        <div className="font-semibold text-lg">{member.name}</div>
-                        <button
-                          onClick={() => toggleDefaultMember(member.id)}
-                          className={`text-sm flex items-center gap-1 ${
-                            defaultMembers.includes(member.id) ? 'text-green-600' : 'text-gray-500'
-                          }`}
-                        >
-                          {defaultMembers.includes(member.id) ? <Check size={14} /> : <X size={14} />}
-                          Miembro por defecto
-                        </button>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => deleteMember(member.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-                  
-                  <label className="flex items-center justify-center gap-2 bg-blue-100 text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-200 cursor-pointer transition text-sm">
-                    <Camera size={16} />
-                    {member.photo ? 'Cambiar foto' : 'Añadir foto'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handlePhotoUpload(e, member.id)}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'bares' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-4 text-purple-700">Gestión de Bares</h2>
-            
-            <div className="flex gap-2 mb-6">
-              <input
-                type="text"
-                value={newBar}
-                onChange={(e) => setNewBar(e.target.value)}
-                placeholder="Nombre del bar o restaurante"
-                className="flex-1 px-4 py-2 border rounded-lg"
-              />
-              <button
-                onClick={addBar}
-                className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {bars.map(bar => (
-                <div key={bar.id} className="bg-gray-50 p-4 rounded-lg flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <MapPin size={24} className="text-purple-600" />
-                    <span className="font-semibold">{bar.name}</span>
-                  </div>
-                  <button
-                    onClick={() => deleteBar(bar.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'pedidos' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-4 text-purple-700">Gestor de Pedidos</h2>
-            
-            <div className="flex gap-2 mb-6">
-              <input
-                type="text"
-                value={newItem}
-                onChange={(e) => setNewItem(e.target.value)}
-                placeholder="Artículo (ej: Caña, Coca-Cola, Café...)"
-                className="flex-1 px-4 py-2 border rounded-lg"
-              />
-              <button
-                onClick={addOrderItem}
-                className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-
-            <div className="mb-6">
-              <h3 className="text-xl font-bold mb-3">Artículos Disponibles</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {orderItems.map(item => (
-                  <div key={item.id} className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold">{item.name}</span>
-                      <button
-                        onClick={() => deleteOrderItem(item.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => updateOrderQuantity(item.id, -1)}
-                        className="bg-red-500 text-white w-10 h-10 rounded-lg hover:bg-red-600 transition font-bold"
-                      >
-                        -
-                      </button>
-                      <span className="text-2xl font-bold w-12 text-center">
-                        {currentOrder[item.id] || 0}
-                      </span>
-                      <button
-                        onClick={() => updateOrderQuantity(item.id, 1)}
-                        className="bg-green-500 text-white w-10 h-10 rounded-lg hover:bg-green-600 transition font-bold"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-purple-50 p-6 rounded-lg">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold">Resumen del Pedido</h3>
-                <button
-                  onClick={clearOrder}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm"
-                >
-                  Limpiar
-                </button>
-              </div>
-              {Object.keys(currentOrder).filter(id => currentOrder[id] > 0).length > 0 ? (
-                <div className="space-y-2">
-                  {Object.keys(currentOrder)
-                    .filter(id => currentOrder[id] > 0)
-                    .map(id => {
-                      const item = orderItems.find(i => i.id === parseInt(id));
-                      return (
-                        <div key={id} className="flex justify-between text-lg">
-                          <span>{item?.name}</span>
-                          <span className="font-bold">{currentOrder[id]}</span>
-                        </div>
-                      );
-                    })}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center">No hay artículos en el pedido</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'juegos' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-4 text-purple-700">🎲 Gestión de Juegos</h2>
-            
-            <div className="flex gap-2 mb-6">
-              <input
-                type="text"
-                value={newGame}
-                onChange={(e) => setNewGame(e.target.value)}
-                placeholder="Nombre del juego (ej: Chinos, Dardos, Futbolín...)"
-                className="flex-1 px-4 py-2 border rounded-lg"
-              />
-              <button
-                onClick={addGame}
-                className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-
-            <div className="mb-8">
-              <h3 className="text-xl font-bold mb-3">Juegos Disponibles</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {games.map(game => (
-                  <div key={game.id} className="bg-gray-50 p-4 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🎮</span>
-                      <span className="font-semibold">{game.name}</span>
-                    </div>
-                    <button
-                      onClick={() => deleteGame(game.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border-t pt-6">
-              <h3 className="text-xl font-bold mb-4">Registrar Resultado de Juego</h3>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-semibold mb-2">Juego:</label>
-                    <select
-                      value={newGameResult.game}
-                      onChange={(e) => setNewGameResult({...newGameResult, game: e.target.value})}
-                      className="w-full px-4 py-2 border rounded-lg"
-                    >
-                      <option value="">Selecciona un juego</option>
-                      {games.map(game => (
-                        <option key={game.id} value={game.name}>{game.name}</option>
-                      ))}
+        <!-- TAB PAGOS -->
+        <div id="pagos" class="tab-content">
+            <div class="section">
+                <h2>Registrar Nuevo Pago</h2>
+                <div class="form-group">
+                    <label>Bar:</label>
+                    <select id="paymentBar">
+                        <option value="">Selecciona un bar</option>
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold mb-2">Bar (opcional):</label>
-                    <select
-                      value={newGameResult.bar}
-                      onChange={(e) => setNewGameResult({...newGameResult, bar: e.target.value})}
-                      className="w-full px-4 py-2 border rounded-lg"
-                    >
-                      <option value="">Selecciona un bar</option>
-                      {bars.map(bar => (
-                        <option key={bar.id} value={bar.name}>{bar.name}</option>
-                      ))}
+                </div>
+                <div class="form-group">
+                    <label>Miembro que paga:</label>
+                    <select id="payerMember">
+                        <option value="">Selecciona un miembro</option>
                     </select>
-                  </div>
                 </div>
-
-                <div>
-                  <label className="block font-semibold mb-2">Quién perdió:</label>
-                  <div className="flex flex-wrap gap-2">
-                    {members.map(member => (
-                      <button
-                        key={member.id}
-                        onClick={() => toggleLoser(member.id)}
-                        className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
-                          newGameResult.losers.includes(member.id)
-                            ? 'bg-red-500 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        {member.photo ? (
-                          <img src={member.photo} alt={member.name} className="w-6 h-6 rounded-full object-cover" />
-                        ) : (
-                          <span>{member.avatar || '👤'}</span>
-                        )}
-                        {member.name}
-                      </button>
-                    ))}
-                  </div>
+                <div class="form-group">
+                    <label>Cantidad (€):</label>
+                    <input type="number" id="paymentAmount" placeholder="0.00" step="0.01" min="0">
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-semibold mb-2">Fecha:</label>
-                    <input
-                      type="date"
-                      value={newGameResult.date}
-                      onChange={(e) => setNewGameResult({...newGameResult, date: e.target.value})}
-                      className="w-full px-4 py-2 border rounded-lg"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold mb-2">📝 Registrado por:</label>
-                    <select
-                      value={newGameResult.registeredBy}
-                      onChange={(e) => setNewGameResult({...newGameResult, registeredBy: e.target.value})}
-                      className="w-full px-4 py-2 border rounded-lg bg-yellow-50 border-yellow-300"
-                    >
-                      <option value="">Selecciona quién registra</option>
-                      {members.map(member => (
-                        <option key={member.id} value={member.id}>
-                          {member.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  onClick={addGameResult}
-                  className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition flex items-center justify-center gap-2"
-                >
-                  <Plus size={20} />
-                  Registrar Resultado
-                </button>
-              </div>
+                <button onclick="registerPayment()">💳 Registrar Pago</button>
             </div>
+        </div>
 
-            <div className="mt-8">
-              <h3 className="text-xl font-bold mb-4">Historial de Juegos</h3>
-              <div className="space-y-3">
-                {gameResults.slice().reverse().map(result => {
-                  const registeredByMember = members.find(m => m.id === result.registeredBy);
-                  return (
-                    <div key={result.id} className="bg-gray-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="font-semibold text-lg">
-                            🎮 {result.game} - Perdió: {result.losers.map(id => members.find(m => m.id === id)?.name).join(', ')}
-                          </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            {result.bar && `${result.bar} • `}{new Date(result.date).toLocaleDateString('es-ES')}
-                          </div>
-                          {registeredByMember && (
-                            <div className="text-xs text-yellow-700 bg-yellow-100 inline-block px-2 py-1 rounded mt-2">
-                              📝 Apuntado por: {registeredByMember.name}
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => deleteGameResult(result.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+        <!-- TAB BALANCES -->
+        <div id="balances" class="tab-content">
+            <div class="section">
+                <h2>Balances por Bar</h2>
+                <div id="barBalances"></div>
             </div>
-          </div>
-        )}
+        </div>
 
-        {activeTab === 'estadisticas' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-6 text-purple-700">Estadísticas del Grupo</h2>
-            
-            {payments.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No hay datos suficientes para mostrar estadísticas</p>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                  <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg">
-                    <div className="text-sm opacity-90">Total de Salidas</div>
-                    <div className="text-4xl font-bold">{payments.length}</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-lg">
-                    <div className="text-sm opacity-90">Bar Favorito</div>
-                    <div className="text-2xl font-bold">{mostFrequentBar}</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-lg">
-                    <div className="text-sm opacity-90">Día Preferido</div>
-                    <div className="text-2xl font-bold capitalize">{preferredDay}</div>
-                  </div>
-                </div>
-
-                <h3 className="text-xl font-bold mb-4">Estadísticas Individuales</h3>
-                <div className="space-y-4">
-                  {stats.sort((a, b) => b.timesPaid - a.timesPaid).map(stat => (
-                    <div key={stat.member.id} className="bg-gray-50 p-5 rounded-lg">
-                      <div className="flex items-center gap-3 mb-3">
-                        {stat.member.photo ? (
-                          <img src={stat.member.photo} alt={stat.member.name} className="w-16 h-16 rounded-full object-cover border-2 border-purple-300" />
-                        ) : (
-                          <div className="text-4xl">{stat.member.avatar || '👤'}</div>
-                        )}
-                        <div className="flex-1">
-                          <div className="font-bold text-xl">{stat.member.name}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <div className="text-gray-600">Veces que pagó</div>
-                          <div className="font-bold text-lg text-green-600">{stat.timesPaid}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600">Veces presente</div>
-                          <div className="font-bold text-lg">{stat.timesPresent}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600">Veces sin pagar</div>
-                          <div className="font-bold text-lg text-red-600">{stat.timesNotPaid}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600">Racha actual</div>
-                          <div className="font-bold text-lg">{stat.currentStreak} 🔥</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600">Total gastado</div>
-                          <div className="font-bold text-lg">{stat.totalSpent.toFixed(2)}€</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600">Promedio por pago</div>
-                          <div className="font-bold text-lg">{stat.avgSpent.toFixed(2)}€</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600">Tasa de pago</div>
-                          <div className="font-bold text-lg">{stat.paymentRate.toFixed(0)}%</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600">Deuda moral</div>
-                          <div className={`font-bold text-lg ${stat.moralDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {stat.moralDebt > 0 ? '+' : ''}{stat.moralDebt.toFixed(0)}%
-                          </div>
-                        </div>
-                      </div>
-
-                      {stat.timesLost > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <div className="font-semibold text-sm text-gray-700 mb-2">🎮 Estadísticas de Juegos:</div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <div className="text-gray-600">Veces perdidas</div>
-                              <div className="font-bold text-lg text-red-600">{stat.timesLost}</div>
-                            </div>
-                            {Object.entries(stat.gamesByType).map(([game, count]) => (
-                              <div key={game}>
-                                <div className="text-gray-600">{game}</div>
-                                <div className="font-bold text-lg">{count}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-8">
-                  <h3 className="text-xl font-bold mb-4">Frecuencia de Bares</h3>
-                  <div className="space-y-2">
-                    {Object.entries(barFrequency)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([bar, count]) => (
-                        <div key={bar} className="flex items-center gap-3">
-                          <div className="flex-1 bg-gray-200 rounded-full h-8 relative overflow-hidden">
-                            <div
-                              className="bg-gradient-to-r from-purple-500 to-blue-500 h-full rounded-full transition-all duration-500"
-                              style={{ width: `${(count / payments.length) * 100}%` }}
-                            />
-                            <div className="absolute inset-0 flex items-center px-3 font-semibold text-sm">
-                              {bar}
-                            </div>
-                          </div>
-                          <div className="font-bold text-lg min-w-[60px] text-right">
-                            {count} {count === 1 ? 'vez' : 'veces'}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {Object.keys(gameFrequency).length > 0 && (
-                  <div className="mt-8">
-                    <h3 className="text-xl font-bold mb-4">Frecuencia de Juegos</h3>
-                    <div className="space-y-2">
-                      {Object.entries(gameFrequency)
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([game, count]) => (
-                          <div key={game} className="flex items-center gap-3">
-                            <div className="flex-1 bg-gray-200 rounded-full h-8 relative overflow-hidden">
-                              <div
-                                className="bg-gradient-to-r from-red-500 to-orange-500 h-full rounded-full transition-all duration-500"
-                                style={{ width: `${(count / gameResults.length) * 100}%` }}
-                              />
-                              <div className="absolute inset-0 flex items-center px-3 font-semibold text-sm">
-                                {game}
-                              </div>
-                            </div>
-                            <div className="font-bold text-lg min-w-[60px] text-right">
-                              {count} {count === 1 ? 'vez' : 'veces'}
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-8">
-                  <h3 className="text-xl font-bold mb-4">🏆 Rankings</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-gradient-to-br from-yellow-100 to-orange-100 p-4 rounded-lg">
-                      <div className="font-bold text-lg mb-2">💰 Más Solidario</div>
-                      {stats.length > 0 && (
-                        <div className="text-xl">
-                          {stats.reduce((a, b) => a.paymentRate > b.paymentRate ? a : b).member.avatar || '👤'} {stats.reduce((a, b) => a.paymentRate > b.paymentRate ? a : b).member.name}
-                        </div>
-                      )}
-                    </div>
-                    <div className="bg-gradient-to-br from-red-100 to-pink-100 p-4 rounded-lg">
-                      <div className="font-bold text-lg mb-2">🔥 Mayor Racha sin Pagar</div>
-                      {stats.length > 0 && (
-                        <div className="text-xl">
-                          {stats.reduce((a, b) => a.currentStreak > b.currentStreak ? a : b).member.avatar || '👤'} {stats.reduce((a, b) => a.currentStreak > b.currentStreak ? a : b).member.name} ({stats.reduce((a, b) => a.currentStreak > b.currentStreak ? a : b).currentStreak})
-                        </div>
-                      )}
-                    </div>
-                    {stats.some(s => s.timesLost > 0) && (
-                      <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-4 rounded-lg">
-                        <div className="font-bold text-lg mb-2">🎮 Más Derrotas</div>
-                        {stats.length > 0 && (
-                          <div className="text-xl">
-                            {stats.reduce((a, b) => a.timesLost > b.timesLost ? a : b).member.avatar || '👤'} {stats.reduce((a, b) => a.timesLost > b.timesLost ? a : b).member.name} ({stats.reduce((a, b) => a.timesLost > b.timesLost ? a : b).timesLost})
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+        <!-- TAB HISTORIAL -->
+        <div id="historial" class="tab-content">
+            <div class="section">
+                <h2>Historial de Pagos</h2>
+                <ul id="historyList" class="history-list"></ul>
+            </div>
+        </div>
     </div>
-  );
-};
 
-export default BarPaymentTracker;
+    <!-- Modal para editar pago -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar Pago</h2>
+                <button class="modal-close" onclick="closeEditModal()">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Bar:</label>
+                <select id="editPaymentBar"></select>
+            </div>
+            <div class="form-group">
+                <label>Miembro que paga:</label>
+                <select id="editPayerMember"></select>
+            </div>
+            <div class="form-group">
+                <label>Cantidad (€):</label>
+                <input type="number" id="editPaymentAmount" step="0.01" min="0">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button onclick="saveEditedPayment()">💾 Guardar Cambios</button>
+                <button class="button-secondary" onclick="closeEditModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Avatares disponibles
+        const memberAvatars = ['👨', '👩', '🧑', '👦', '👧', '🧔', '👨‍🦰', '👩‍🦰', '👨‍🦱', '👩‍🦱', '👨‍🦳', '👩‍🦳', '👨‍🦲', '👩‍🦲', '🧑‍🦰'];
+        const barAvatars = ['🍺', '🍻', '🍷', '🍸', '🍹', '🥃', '🍾', '🏪', '🏠', '🎭', '🎪', '🎨', '🎵', '⚽', '🎮'];
+
+        // Sistema de datos
+        let data = {
+            members: [],
+            bars: [],
+            payments: []
+        };
+
+        let currentEditingPayment = null;
+
+        // Cargar datos del localStorage
+        function loadData() {
+            const saved = localStorage.getItem('barsManagementData');
+            if (saved) {
+                data = JSON.parse(saved);
+            }
+        }
+
+        // Guardar datos en localStorage
+        function saveData() {
+            localStorage.setItem('barsManagementData', JSON.stringify(data));
+        }
+
+        // Inicializar selectores de avatares
+        function initAvatarSelectors() {
+            const memberSelector = document.getElementById('memberAvatarSelector');
+            const barSelector = document.getElementById('barAvatarSelector');
+
+            memberSelector.innerHTML = memberAvatars.map((avatar, index) => 
+                `<div class="avatar-option ${index === 0 ? 'selected' : ''}" onclick="selectAvatar('member', '${avatar}', ${index})">${avatar}</div>`
+            ).join('') + `<label class="custom-avatar-label" for="memberCustomAvatar">📷</label>`;
+
+            barSelector.innerHTML = barAvatars.map((avatar, index) => 
+                `<div class="avatar-option ${index === 0 ? 'selected' : ''}" onclick="selectAvatar('bar', '${avatar}', ${index})">${avatar}</div>`
+            ).join('') + `<label class="custom-avatar-label" for="barCustomAvatar">📷</label>`;
+
+            // Manejar upload de imágenes personalizadas
+            document.getElementById('memberCustomAvatar').addEventListener('change', (e) => handleCustomAvatar(e, 'member'));
+            document.getElementById('barCustomAvatar').addEventListener('change', (e) => handleCustomAvatar(e, 'bar'));
+        }
+
+        let selectedMemberAvatar = memberAvatars[0];
+        let selectedBarAvatar = barAvatars[0];
+
+        function selectAvatar(type, avatar, index) {
+            const selector = document.getElementById(type === 'member' ? 'memberAvatarSelector' : 'barAvatarSelector');
+            const options = selector.querySelectorAll('.avatar-option');
+            options.forEach((opt, i) => {
+                opt.classList.toggle('selected', i === index);
+            });
+
+            if (type === 'member') {
+                selectedMemberAvatar = avatar;
+            } else {
+                selectedBarAvatar = avatar;
+            }
+        }
+
+        function handleCustomAvatar(event, type) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imageData = e.target.result;
+                    const selector = document.getElementById(type === 'member' ? 'memberAvatarSelector' : 'barAvatarSelector');
+                    
+                    // Deseleccionar otros avatares
+                    selector.querySelectorAll('.avatar-option').forEach(opt => opt.classList.remove('selected'));
+                    
+                    // Actualizar el label con la imagen
+                    const label = selector.querySelector('.custom-avatar-label');
+                    label.innerHTML = `<img src="${imageData}" class="avatar-preview">`;
+                    label.style.border = '3px solid #2563eb';
+                    
+                    if (type === 'member') {
+                        selectedMemberAvatar = imageData;
+                    } else {
+                        selectedBarAvatar = imageData;
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Función para mostrar avatar
+        function displayAvatar(avatar) {
+            if (avatar.startsWith('data:image')) {
+                return `<img src="${avatar}" class="avatar-preview" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">`;
+            }
+            return `<span class="avatar-display">${avatar}</span>`;
+        }
+
+        // Cambiar de tab
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            if (tabName === 'balances') {
+                renderBalances();
+            } else if (tabName === 'historial') {
+                renderHistory();
+            }
+        }
+
+        // Añadir miembro
+        function addMember() {
+            const name = document.getElementById('memberName').value.trim();
+            
+            if (!name) {
+                alert('Por favor, introduce un nombre');
+                return;
+            }
+
+            if (data.members.some(m => m.name.toLowerCase() === name.toLowerCase())) {
+                alert('Este miembro ya existe');
+                return;
+            }
+
+            data.members.push({
+                id: Date.now(),
+                name: name,
+                avatar: selectedMemberAvatar
+            });
+
+            saveData();
+            document.getElementById('memberName').value = '';
+            renderMembers();
+            updatePaymentSelects();
+            
+            // Reset avatar selection
+            selectedMemberAvatar = memberAvatars[0];
+            initAvatarSelectors();
+        }
+
+        // Añadir bar
+        function addBar() {
+            const name = document.getElementById('barName').value.trim();
+            
+            if (!name) {
+                alert('Por favor, introduce el nombre del bar');
+                return;
+            }
+
+            if (data.bars.some(b => b.name.toLowerCase() === name.toLowerCase())) {
+                alert('Este bar ya existe');
+                return;
+            }
+
+            data.bars.push({
+                id: Date.now(),
+                name: name,
+                avatar: selectedBarAvatar
+            });
+
+            saveData();
+            document.getElementById('barName').value = '';
+            renderBars();
+            updatePaymentSelects();
+            
+            // Reset avatar selection
+            selectedBarAvatar = barAvatars[0];
+            initAvatarSelectors();
+        }
+
+        // Eliminar miembro
+        function deleteMember(id) {
+            if (!confirm('¿Estás seguro de eliminar este miembro? Se perderán sus pagos asociados.')) {
+                return;
+            }
+
+            data.members = data.members.filter(m => m.id !== id);
+            data.payments = data.payments.filter(p => p.memberId !== id);
+            saveData();
+            renderMembers();
+            updatePaymentSelects();
+        }
+
+        // Eliminar bar
+        function deleteBar(id) {
+            if (!confirm('¿Estás seguro de eliminar este bar? Se perderán los pagos asociados.')) {
+                return;
+            }
+
+            data.bars = data.bars.filter(b => b.id !== id);
+            data.payments = data.payments.filter(p => p.barId !== id);
+            saveData();
+            renderBars();
+            updatePaymentSelects();
+        }
+
+        // Registrar pago
+        function registerPayment() {
+            const barId = parseInt(document.getElementById('paymentBar').value);
+            const memberId = parseInt(document.getElementById('payerMember').value);
+            const amount = parseFloat(document.getElementById('paymentAmount').value);
+
+            if (!barId || !memberId || !amount || amount <= 0) {
+                alert('Por favor, completa todos los campos correctamente');
+                return;
+            }
+
+            data.payments.push({
+                id: Date.now(),
+                barId: barId,
+                memberId: memberId,
+                amount: amount,
+                date: new Date().toISOString()
+            });
+
+            saveData();
+            
+            // Limpiar formulario
+            document.getElementById('paymentBar').value = '';
+            document.getElementById('payerMember').value = '';
+            document.getElementById('paymentAmount').value = '';
+
+            alert('Pago registrado correctamente');
+        }
+
+        // Editar pago
+        function editPayment(paymentId) {
+            const payment = data.payments.find(p => p.id === paymentId);
+            if (!payment) return;
+
+            currentEditingPayment = paymentId;
+
+            // Llenar el modal con los datos actuales
+            document.getElementById('editPaymentBar').value = payment.barId;
+            document.getElementById('editPayerMember').value = payment.memberId;
+            document.getElementById('editPaymentAmount').value = payment.amount;
+
+            // Mostrar modal
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+            currentEditingPayment = null;
+        }
+
+        function saveEditedPayment() {
+            if (!currentEditingPayment) return;
+
+            const barId = parseInt(document.getElementById('editPaymentBar').value);
+            const memberId = parseInt(document.getElementById('editPayerMember').value);
+            const amount = parseFloat(document.getElementById('editPaymentAmount').value);
+
+            if (!barId || !memberId || !amount || amount <= 0) {
+                alert('Por favor, completa todos los campos correctamente');
+                return;
+            }
+
+            const paymentIndex = data.payments.findIndex(p => p.id === currentEditingPayment);
+            if (paymentIndex !== -1) {
+                data.payments[paymentIndex] = {
+                    ...data.payments[paymentIndex],
+                    barId: barId,
+                    memberId: memberId,
+                    amount: amount
+                };
+
+                saveData();
+                closeEditModal();
+                renderHistory();
+                alert('Pago actualizado correctamente');
+            }
+        }
+
+        // Eliminar pago
+        function deletePayment(paymentId) {
+            if (!confirm('¿Estás seguro de eliminar este pago?')) {
+                return;
+            }
+
+            data.payments = data.payments.filter(p => p.id !== paymentId);
+            saveData();
+            renderHistory();
+        }
+
+        // Renderizar miembros
+        function renderMembers() {
+            const list = document.getElementById('membersList');
+            if (data.members.length === 0) {
+                list.innerHTML = '<li class="list-item">No hay miembros añadidos</li>';
+                return;
+            }
+
+            list.innerHTML = data.members.map(member => `
+                <li class="list-item">
+                    <div class="list-item-content">
+                        ${displayAvatar(member.avatar)}
+                        <strong>${member.name}</strong>
+                    </div>
+                    <button class="delete-btn" onclick="deleteMember(${member.id})">🗑️ Eliminar</button>
+                </li>
+            `).join('');
+        }
+
+        // Renderizar bares
+        function renderBars() {
+            const list = document.getElementById('barsList');
+            if (data.bars.length === 0) {
+                list.innerHTML = '<li class="list-item">No hay bares añadidos</li>';
+                return;
+            }
+
+            list.innerHTML = data.bars.map(bar => `
+                <li class="list-item">
+                    <div class="list-item-content">
+                        ${displayAvatar(bar.avatar)}
+                        <strong>${bar.name}</strong>
+                    </div>
+                    <button class="delete-btn" onclick="deleteBar(${bar.id})">🗑️ Eliminar</button>
+                </li>
+            `).join('');
+        }
+
+        // Actualizar selects de pagos
+        function updatePaymentSelects() {
+            const barSelect = document.getElementById('paymentBar');
+            const memberSelect = document.getElementById('payerMember');
+            const editBarSelect = document.getElementById('editPaymentBar');
+            const editMemberSelect = document.getElementById('editPayerMember');
+
+            // Select de bares
+            barSelect.innerHTML = '<option value="">Selecciona un bar</option>' +
+                data.bars.map(bar => `<option value="${bar.id}">${bar.name}</option>`).join('');
+            
+            editBarSelect.innerHTML = data.bars.map(bar => `<option value="${bar.id}">${bar.name}</option>`).join('');
+
+            // Select de miembros
+            memberSelect.innerHTML = '<option value="">Selecciona un miembro</option>' +
+                data.members.map(member => `<option value="${member.id}">${member.name}</option>`).join('');
+            
+            editMemberSelect.innerHTML = data.members.map(member => `<option value="${member.id}">${member.name}</option>`).join('');
+        }
+
+        // Calcular balances
+        function calculateBalances() {
+            const balances = {};
+
+            data.bars.forEach(bar => {
+                balances[bar.id] = {
+                    bar: bar,
+                    members: {}
+                };
+
+                data.members.forEach(member => {
+                    balances[bar.id].members[member.id] = {
+                        member: member,
+                        paid: 0,
+                        owes: 0,
+                        balance: 0
+                    };
+                });
+            });
+
+            // Calcular lo que cada uno ha pagado
+            data.payments.forEach(payment => {
+                if (balances[payment.barId] && balances[payment.barId].members[payment.memberId]) {
+                    balances[payment.barId].members[payment.memberId].paid += payment.amount;
+                }
+            });
+
+            // Calcular balances
+            Object.keys(balances).forEach(barId => {
+                const barBalance = balances[barId];
+                const totalPaid = Object.values(barBalance.members).reduce((sum, m) => sum + m.paid, 0);
+                const memberCount = data.members.length;
+                const avgPerPerson = totalPaid / memberCount;
+
+                Object.keys(barBalance.members).forEach(memberId => {
+                    const memberBalance = barBalance.members[memberId];
+                    memberBalance.owes = avgPerPerson;
+                    memberBalance.balance = memberBalance.paid - avgPerPerson;
+                });
+            });
+
+            return balances;
+        }
+
+        // Renderizar balances
+        function renderBalances() {
+            const container = document.getElementById('barBalances');
+            const balances = calculateBalances();
+
+            if (data.bars.length === 0) {
+                container.innerHTML = '<p>No hay bares registrados</p>';
+                return;
+            }
+
+            let html = '';
+
+            data.bars.forEach(bar => {
+                const barBalance = balances[bar.id];
+                html += `
+                    <div style="margin-bottom: 30px; background: white; padding: 20px; border-radius: 10px;">
+                        <h3 style="display: flex; align-items: center; margin-bottom: 15px;">
+                            ${displayAvatar(bar.avatar)}
+                            ${bar.name}
+                        </h3>
+                        <div class="balance-grid">
+                `;
+
+                Object.values(barBalance.members).forEach(memberBalance => {
+                    const balanceClass = memberBalance.balance > 0 ? 'balance-positive' : 
+                                       memberBalance.balance < 0 ? 'balance-negative' : 'balance-neutral';
+                    const balanceText = memberBalance.balance > 0 ? 'Le deben' : 
+                                       memberBalance.balance < 0 ? 'Debe' : 'Saldado';
+
+                    html += `
+                        <div class="balance-card">
+                            <h3 style="display: flex; align-items: center;">
+                                ${displayAvatar(memberBalance.member.avatar)}
+                                ${memberBalance.member.name}
+                            </h3>
+                            <div style="color: #6b7280; font-size: 0.9em; margin-top: 10px;">
+                                Ha pagado: <strong>${memberBalance.paid.toFixed(2)}€</strong><br>
+                                Debe pagar: <strong>${memberBalance.owes.toFixed(2)}€</strong>
+                            </div>
+                            <div class="balance-amount ${balanceClass}">
+                                ${Math.abs(memberBalance.balance).toFixed(2)}€
+                            </div>
+                            <div style="color: #6b7280;">${balanceText}</div>
+                        </div>
+                    `;
+                });
+
+                html += `</div></div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Renderizar historial
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            
+            if (data.payments.length === 0) {
+                list.innerHTML = '<li class="history-item">No hay pagos registrados</li>';
+                return;
+            }
+
+            const sortedPayments = [...data.payments].sort((a, b) => 
+                new Date(b.date) - new Date(a.date)
+            );
+
+            list.innerHTML = sortedPayments.map(payment => {
+                const bar = data.bars.find(b => b.id === payment.barId);
+                const member = data.members.find(m => m.id === payment.memberId);
+                const date = new Date(payment.date);
+
+                if (!bar || !member) return '';
+
+                return `
+                    <li class="history-item">
+                        <div class="history-date">
+                            ${date.toLocaleDateString('es-ES')} - ${date.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}
+                        </div>
+                        <div class="history-details">
+                            ${displayAvatar(member.avatar)}
+                            <strong>${member.name}</strong> pagó en 
+                            ${displayAvatar(bar.avatar)}
+                            <strong>${bar.name}</strong>
+                        </div>
+                        <div class="history-amount">
+                            ${payment.amount.toFixed(2)}€
+                        </div>
+                        <div class="history-item-actions">
+                            <button class="edit-button" onclick="editPayment(${payment.id})">✏️ Editar</button>
+                            <button class="delete-btn" onclick="deletePayment(${payment.id})">🗑️ Eliminar</button>
+                        </div>
+                    </li>
+                `;
+            }).join('');
+        }
+
+        // Inicializar aplicación
+        function init() {
+            loadData();
+            initAvatarSelectors();
+            renderMembers();
+            renderBars();
+            updatePaymentSelects();
+        }
+
+        // Iniciar cuando cargue la página
+        window.onload = init;
+    </script>
+</body>
+</html>
